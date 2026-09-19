@@ -104,8 +104,8 @@ class TestLinkFlow(unittest.TestCase):
         thumb_name = generate_thumbnail(img_path, self.thumbs_dir, "image/jpeg")
         self.assertIsNone(thumb_name)
 
-    def test_pdf_thumbnail_generation(self):
-        # Create a sample 1-page PDF using PyMuPDF
+    def test_pdf_no_thumbnail(self):
+        # PDFs are also treated uniformly as files without thumbnails
         pdf_path = os.path.join(self.temp_dir.name, "test_doc.pdf")
         doc = fitz.open()
         page = doc.new_page(width=595, height=842)
@@ -114,9 +114,8 @@ class TestLinkFlow(unittest.TestCase):
         doc.close()
 
         thumb_name = generate_thumbnail(pdf_path, self.thumbs_dir, "application/pdf")
-        self.assertIsNotNone(thumb_name)
-        full_thumb_path = os.path.join(self.thumbs_dir, thumb_name)
-        self.assertTrue(os.path.exists(full_thumb_path))
+        self.assertIsNone(thumb_name)
+
 
     def test_months_query(self):
         # Insert messages in different months

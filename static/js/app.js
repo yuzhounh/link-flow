@@ -312,54 +312,23 @@
       const textSpan = document.createElement('span');
       textSpan.innerHTML = escapeAndLinkText(msg.content);
       bubble.appendChild(textSpan);
-    } else if (msg.msg_type === 'video') {
-      bubble.className = 'video-card';
-      const video = document.createElement('video');
-      video.src = `/files/${msg.file_path}`;
-      video.controls = true;
-      video.preload = 'metadata';
-      bubble.appendChild(video);
-    } else if (msg.msg_type === 'audio') {
-      bubble.className = 'audio-card';
-      const audio = document.createElement('audio');
-      audio.src = `/files/${msg.file_path}`;
-      audio.controls = true;
-      bubble.appendChild(audio);
-    } else if (msg.msg_type === 'pdf') {
-      bubble.className = 'pdf-card';
-      if (msg.thumb_path) {
-        const cover = document.createElement('div');
-        cover.className = 'pdf-preview-cover';
-        const coverImg = document.createElement('img');
-        coverImg.src = `/thumbs/${msg.thumb_path}`;
-        coverImg.onclick = () => window.open(`/files/${msg.file_path}`, '_blank');
-        cover.appendChild(coverImg);
-        bubble.appendChild(cover);
-      }
-
-      const infoRow = document.createElement('div');
-      infoRow.className = 'pdf-info-row';
-      infoRow.innerHTML = `
-        <div class="file-info">
-          <a class="file-name" href="/files/${msg.file_path}" target="_blank" title="${msg.file_name}">${msg.file_name}</a>
-          <div class="file-meta">📄 PDF · ${formatFileSize(msg.file_size)}</div>
-        </div>
-        <div class="file-ops">
-          ${isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : `<a class="file-op-btn" href="/files/${msg.file_path}" download="${msg.file_name}" title="下载保存">⬇️</a>`}
-        </div>
-      `;
-      bubble.appendChild(infoRow);
-
-      if (isHost) {
-        const btn = infoRow.querySelector('.open-folder-btn');
-        if (btn) btn.onclick = () => revealInFolder(msg.id);
-      }
     } else {
-      // File Card (Images and any general files)
+      // Unified file card for all files (PDF, images, videos, audios, archives, docs, etc.)
       bubble.className = 'file-card';
-      const ext = (msg.file_name.split('.').pop() || 'FILE').toUpperCase();
-      const isImg = ['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'BMP', 'SVG', 'HEIC', 'ICO', 'AVIF'].includes(ext);
-      const icon = isImg ? '🖼️' : '📦';
+      const ext = (msg.file_name ? msg.file_name.split('.').pop() : 'FILE').toUpperCase();
+      let icon = '📦';
+      if (['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'BMP', 'SVG', 'HEIC', 'ICO', 'AVIF'].includes(ext)) {
+        icon = '🖼️';
+      } else if (ext === 'PDF' || ['DOC', 'DOCX', 'TXT', 'MD', 'XLS', 'XLSX', 'PPT', 'PPTX', 'CSV'].includes(ext)) {
+        icon = '📄';
+      } else if (['MP4', 'MKV', 'MOV', 'AVI', 'WEBM', 'FLV'].includes(ext)) {
+        icon = '🎬';
+      } else if (['MP3', 'WAV', 'FLAC', 'AAC', 'OGG', 'M4A'].includes(ext)) {
+        icon = '🎵';
+      } else if (['ZIP', 'RAR', '7Z', 'TAR', 'GZ', 'BZ2'].includes(ext)) {
+        icon = '📦';
+      }
+
       bubble.innerHTML = `
         <div class="file-icon-box">${icon}</div>
         <div class="file-info">

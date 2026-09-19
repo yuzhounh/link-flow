@@ -232,24 +232,15 @@ class UploadHandler(BaseHandler):
         with open(full_path, "wb") as f:
             f.write(body)
 
-        # Determine mime type & message type
+        # Determine mime type
         mime_type, _ = mimetypes.guess_type(filename)
         if not mime_type:
             mime_type = "application/octet-stream"
 
-        if mime_type.startswith("video/"):
-            msg_type = "video"
-        elif mime_type.startswith("audio/"):
-            msg_type = "audio"
-        elif mime_type == "application/pdf":
-            msg_type = "pdf"
-        else:
-            # Images and generic documents are treated directly as files
-            msg_type = "file"
+        # All files (PDF, images, videos, audios, archives, etc.) are treated uniformly as standard files without previews
+        msg_type = "file"
+        thumb_path = ""
 
-        # Generate thumbnail for PDFs
-        thumb_file = generate_thumbnail(full_path, self.state.thumbs_dir, mime_type) if msg_type == "pdf" else None
-        thumb_path = thumb_file if thumb_file else ""
 
         msg_id = str(uuid.uuid4())
         record = {
