@@ -100,12 +100,14 @@ def main():
         icon_path = os.path.join(static_dir, "icon.png")
 
     files_dir = os.path.join(data_dir, "files")
+    start_vbs_path = os.path.join(base_dir, "start.vbs")
     tray = LinkFlowTray(
         port=port,
         lan_ip=lan_ip,
         files_dir=files_dir,
         icon_path=icon_path,
-        on_exit=stop_server
+        on_exit=stop_server,
+        start_vbs_path=start_vbs_path
     )
 
     if HAS_PYQT:

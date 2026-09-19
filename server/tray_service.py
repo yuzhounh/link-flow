@@ -1,6 +1,9 @@
 import os
 import sys
 import time
+import winreg
+import ctypes
+from ctypes import wintypes
 import webbrowser
 import logging
 from typing import Optional, Callable
@@ -13,6 +16,34 @@ try:
 except ImportError:
     HAS_PYQT = False
 
+REG_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+REG_RUN_NAME = "LinkFlow"
+
+def is_autostart_enabled() -> bool:
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_RUN_KEY, 0, winreg.KEY_READ) as key:
+            winreg.QueryValueEx(key, REG_RUN_NAME)
+            return True
+    except Exception:
+        return False
+
+def set_autostart(enable: bool, start_vbs_path: str) -> bool:
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
+            if enable:
+                cmd = f'wscript.exe "{os.path.abspath(start_vbs_path)}"'
+                winreg.SetValueEx(key, REG_RUN_NAME, 0, winreg.REG_SZ, cmd)
+            else:
+                try:
+                    winreg.DeleteValue(key, REG_RUN_NAME)
+                except FileNotFoundError:
+                    pass
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to set autostart in registry: {e}")
+        return False
+
+
 class LinkFlowTray:
     def __init__(
         self,
@@ -20,13 +51,21 @@ class LinkFlowTray:
         lan_ip: str,
         files_dir: str,
         icon_path: str,
-        on_exit: Optional[Callable] = None
+        on_exit: Optional[Callable] = None,
+        start_vbs_path: Optional[str] = None
     ):
         self.port = port
         self.lan_ip = lan_ip
         self.files_dir = files_dir
         self.icon_path = icon_path
         self.on_exit = on_exit
+        
+        if start_vbs_path:
+            self.start_vbs_path = start_vbs_path
+        else:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            self.start_vbs_path = os.path.join(base_dir, "start.vbs")
+
         self.pc_url = f"http://localhost:{port}"
         self.phone_url = f"http://{lan_ip}:{port}"
         self.qapp = None
@@ -44,7 +83,7 @@ class LinkFlowTray:
                 self.qapp.clipboard().setText(self.phone_url)
             if self.tray:
                 self.tray.showMessage(
-                    "LinkFlow 私人传输",
+                    "LinkFlow",
                     f"手机连接地址已复制到剪贴板:\n{self.phone_url}",
                     QtWidgets.QSystemTrayIcon.Information,
                     2500
@@ -54,12 +93,47 @@ class LinkFlowTray:
 
     def open_files_folder(self):
         try:
-            # Directly open the current month directory where latest files are stored
             month_str = time.strftime("%Y-%m")
             current_month_dir = os.path.join(self.files_dir, month_str)
             if not os.path.exists(current_month_dir):
                 os.makedirs(current_month_dir, exist_ok=True)
+
+            try:
+                ctypes.windll.user32.AllowSetForegroundWindow(-1)
+            except Exception:
+                pass
+
             os.startfile(current_month_dir)
+
+            # Bring folder window to foreground
+            user32 = ctypes.windll.user32
+            folder_name = os.path.basename(current_month_dir)
+            for _ in range(8):
+                time.sleep(0.1)
+                found = []
+                def enum_cb(h, _):
+                    if user32.IsWindowVisible(h):
+                        cls = ctypes.create_unicode_buffer(64)
+                        user32.GetClassNameW(h, cls, 64)
+                        if cls.value == "CabinetWClass":
+                            txt = ctypes.create_unicode_buffer(512)
+                            user32.GetWindowTextW(h, txt, 512)
+                            if folder_name.lower() in txt.value.lower():
+                                found.append(h)
+                    return True
+
+                cb_func = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)(enum_cb)
+                user32.EnumWindows(cb_func, 0)
+                if found:
+                    hwnd = found[0]
+                    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                    user32.BringWindowToTop(hwnd)
+                    user32.SetForegroundWindow(hwnd)
+                    try:
+                        user32.SwitchToThisWindow(hwnd, True)
+                    except Exception:
+                        pass
+                    break
         except Exception as e:
             logger.warning(f"Failed to open folder: {e}")
 
@@ -90,47 +164,75 @@ class LinkFlowTray:
         else:
             self.tray.setIcon(self.qapp.style().standardIcon(QtWidgets.QStyle.SP_ComputerIcon))
 
-        self.tray.setToolTip(f"LinkFlow 私人文件传输助手 (端口: {self.port})")
+        self.tray.setToolTip(f"LinkFlow (端口: {self.port})")
 
         # Context Menu
         menu = QtWidgets.QMenu()
+        menu.setWindowFlags(menu.windowFlags() | QtCore.Qt.FramelessWindowHint)
+        menu.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
+
+        # Style matching Windows 11 modern context menus (Screenshots 4 & 5)
         menu.setStyleSheet("""
             QMenu {
                 background-color: #ffffff;
-                border: 1px solid #dcdcdc;
-                padding: 4px 0px;
-                font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-                font-size: 13px;
+                border: 1px solid #dce0e5;
+                border-radius: 12px;
+                padding: 8px 8px;
+                font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+                font-size: 14px;
+                color: #1f2328;
             }
             QMenu::item {
-                padding: 6px 22px 6px 18px;
+                padding: 9px 32px 9px 18px;
+                border-radius: 6px;
+                margin: 1px 0px;
             }
             QMenu::item:selected {
-                background-color: #e8f5fb;
-                color: #24a1de;
+                background-color: #f2f4f7;
+                color: #1f2328;
             }
             QMenu::separator {
                 height: 1px;
-                background: #eeeeee;
-                margin: 4px 8px;
+                background-color: #f0f2f5;
+                margin: 6px 10px;
             }
         """)
 
-        act_open = menu.addAction("🚀 打开 LinkFlow")
+        # 1. 打开 LinkFlow (Bold item)
+        act_open = menu.addAction("打开 LinkFlow")
         font = act_open.font()
         font.setBold(True)
         act_open.setFont(font)
         act_open.triggered.connect(self.open_web)
 
-        act_copy = menu.addAction("📱 复制手机连接地址")
+        # 2. 复制手机连接地址
+        act_copy = menu.addAction("复制手机连接地址")
         act_copy.triggered.connect(self.copy_phone_url)
 
-        act_folder = menu.addAction("📂 打开文件接收目录")
+        # 3. 打开文件接收目录
+        act_folder = menu.addAction("打开文件接收目录")
         act_folder.triggered.connect(self.open_files_folder)
 
         menu.addSeparator()
 
-        act_exit = menu.addAction("❌ 退出 LinkFlow")
+        # 4. 开机自启动 (Checkable)
+        act_autostart = menu.addAction("开机自启动")
+        act_autostart.setCheckable(True)
+        act_autostart.setChecked(is_autostart_enabled())
+
+        def on_toggle_autostart():
+            enable = act_autostart.isChecked()
+            set_autostart(enable, self.start_vbs_path)
+            if self.tray:
+                msg = "已开启开机自启动" if enable else "已关闭开机自启动"
+                self.tray.showMessage("LinkFlow", msg, QtWidgets.QSystemTrayIcon.Information, 2000)
+
+        act_autostart.triggered.connect(on_toggle_autostart)
+
+        menu.addSeparator()
+
+        # 5. 退出
+        act_exit = menu.addAction("退出")
         act_exit.triggered.connect(self.quit)
 
         self.tray.setContextMenu(menu)

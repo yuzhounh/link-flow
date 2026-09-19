@@ -6,6 +6,9 @@ import uuid
 import mimetypes
 import logging
 import subprocess
+import ctypes
+from ctypes import wintypes
+import threading
 from datetime import datetime
 from typing import Set, Dict, Any, Optional
 
@@ -283,6 +286,85 @@ class ClipboardHandler(BaseHandler):
         self.write({"status": "ok", "text": text})
 
 
+def reveal_in_explorer(file_path: str):
+    """Open Windows Explorer, select the file, and bring the window to the foreground."""
+    if sys.platform != "win32":
+        return
+
+    full_path = os.path.normpath(os.path.abspath(file_path))
+    if not os.path.exists(full_path):
+        return
+
+    folder_path = os.path.dirname(full_path)
+    folder_name = os.path.basename(folder_path)
+
+    def _worker():
+        try:
+            ctypes.windll.user32.AllowSetForegroundWindow(-1)
+        except Exception:
+            pass
+
+        opened = False
+        try:
+            ctypes.windll.ole32.CoInitialize(None)
+            ILCreateFromPathW = ctypes.windll.shell32.ILCreateFromPathW
+            ILCreateFromPathW.restype = ctypes.c_void_p
+            ILCreateFromPathW.argtypes = [wintypes.LPCWSTR]
+
+            ILFree = ctypes.windll.shell32.ILFree
+            ILFree.argtypes = [ctypes.c_void_p]
+
+            SHOpenFolderAndSelectItems = ctypes.windll.shell32.SHOpenFolderAndSelectItems
+            SHOpenFolderAndSelectItems.argtypes = [ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p, wintypes.DWORD]
+
+            pidl = ILCreateFromPathW(full_path)
+            if pidl:
+                try:
+                    hr = SHOpenFolderAndSelectItems(pidl, 0, None, 0)
+                    if hr == 0:
+                        opened = True
+                finally:
+                    ILFree(pidl)
+            ctypes.windll.ole32.CoUninitialize()
+        except Exception:
+            pass
+
+        if not opened:
+            subprocess.Popen(f'explorer /select,"{full_path}"')
+
+        # Poll and bring the Explorer window to foreground
+        user32 = ctypes.windll.user32
+        for _ in range(12):
+            time.sleep(0.12)
+            found = []
+
+            def enum_cb(h, _):
+                if user32.IsWindowVisible(h):
+                    cls = ctypes.create_unicode_buffer(64)
+                    user32.GetClassNameW(h, cls, 64)
+                    if cls.value == "CabinetWClass":
+                        txt = ctypes.create_unicode_buffer(512)
+                        user32.GetWindowTextW(h, txt, 512)
+                        if folder_name.lower() in txt.value.lower() or not folder_name:
+                            found.append(h)
+                return True
+
+            cb_func = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)(enum_cb)
+            user32.EnumWindows(cb_func, 0)
+            if found:
+                hwnd = found[0]
+                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                user32.BringWindowToTop(hwnd)
+                user32.SetForegroundWindow(hwnd)
+                try:
+                    user32.SwitchToThisWindow(hwnd, True)
+                except Exception:
+                    pass
+                break
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
 class OpenFileHandler(BaseHandler):
     def post(self):
         try:
@@ -295,9 +377,8 @@ class OpenFileHandler(BaseHandler):
                 return
 
             full_path = os.path.normpath(os.path.join(self.state.files_dir, msg["file_path"]))
-            if os.path.exists(full_path) and sys.platform == "win32":
-                # Reveal file in Windows Explorer
-                subprocess.Popen(f'explorer /select,"{full_path}"')
+            if os.path.exists(full_path):
+                reveal_in_explorer(full_path)
                 self.write({"status": "ok", "path": full_path})
             else:
                 self.set_status(404)
