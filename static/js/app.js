@@ -12,6 +12,7 @@
   // 2. State variables
   let ws = null;
   let lanIp = location.hostname;
+  let allIps = [];
   let port = location.port || (location.protocol === 'https:' ? '443' : '80');
   let autoClipboard = true;
   let qrcodeObj = null;
@@ -34,6 +35,8 @@
   const doneQrBtn = document.getElementById('done-qr-btn');
   const qrUrlText = document.getElementById('qr-url-text');
   const copyUrlBtn = document.getElementById('copy-url-btn');
+  const ipSelect = document.getElementById('ip-select');
+  const ipSwitchBox = document.getElementById('ip-switch-box');
 
   const settingsModal = document.getElementById('settings-modal');
   const openSettingsBtn = document.getElementById('open-settings-btn');
@@ -143,11 +146,13 @@
       const infoData = await infoRes.json();
       if (infoData.status === 'ok') {
         lanIp = infoData.lan_ip;
+        allIps = infoData.all_ips || [lanIp];
         port = infoData.port;
         autoClipboard = infoData.auto_clipboard;
         settingAutoClipboard.checked = autoClipboard;
         updateClipboardBadge();
         updateStorageStats(infoData.stats);
+        setupIpSelector();
       }
     } catch (e) {
       console.error('Failed to load initial data', e);
@@ -568,22 +573,50 @@
   }
 
   // 9. QR Code Modal
-  function showQrModal() {
-    const targetUrl = `http://${lanIp}:${port}`;
-    qrUrlText.textContent = targetUrl;
+  function setupIpSelector() {
+    if (!ipSelect || !ipSwitchBox) return;
+    if (allIps.length > 1) {
+      ipSwitchBox.style.display = 'block';
+      ipSelect.innerHTML = '';
+      allIps.forEach(ip => {
+        const opt = document.createElement('option');
+        opt.value = ip;
+        opt.textContent = ip + (ip === lanIp ? ' (推荐 Wi-Fi)' : '');
+        if (ip === lanIp) opt.selected = true;
+        ipSelect.appendChild(opt);
+      });
+      ipSelect.onchange = () => {
+        renderQrCode(ipSelect.value);
+      };
+    } else {
+      ipSwitchBox.style.display = 'none';
+    }
+  }
 
+  function renderQrCode(ip) {
+    const targetUrl = `http://${ip}:${port}`;
+    qrUrlText.textContent = targetUrl;
     const container = document.getElementById('qr-canvas-container');
     container.innerHTML = '';
-    if (window.QRCode) {
-      qrcodeObj = new QRCode(container, {
-        text: targetUrl,
-        width: 196,
-        height: 196,
-        colorDark: '#000000',
-        colorLight: '#ffffff'
-      });
+    try {
+      if (window.QRCode) {
+        new QRCode(container, {
+          text: targetUrl,
+          width: 196,
+          height: 196,
+          colorDark: '#000000',
+          colorLight: '#ffffff'
+        });
+      }
+    } catch (err) {
+      console.error('QR code generation error:', err);
+      container.innerHTML = `<div style="padding:20px;text-align:center;color:#ff4d4f;font-size:12px;">二维码生成异常，请直接在手机浏览器访问:<br><strong style="font-size:14px;color:var(--text-main);">${targetUrl}</strong></div>`;
     }
+  }
+
+  function showQrModal() {
     qrModal.classList.add('open');
+    renderQrCode(ipSelect && ipSelect.value ? ipSelect.value : lanIp);
   }
 
   openQrBtn.addEventListener('click', showQrModal);
