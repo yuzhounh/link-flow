@@ -155,10 +155,11 @@ class MessagesHandler(BaseHandler):
         limit = int(self.get_argument("limit", "50"))
         before_ts = self.get_argument("before_ts", None)
         search = self.get_argument("search", None)
+        month = self.get_argument("month", None)
         before_ts_int = int(before_ts) if before_ts else None
 
-        messages = self.state.db.get_messages(limit=limit, before_ts=before_ts_int, search=search)
-        self.write({"status": "ok", "messages": messages})
+        messages = self.state.db.get_messages(limit=limit, before_ts=before_ts_int, search=search, month=month)
+        self.write({"status": "ok", "messages": messages, "month": month})
 
     def delete(self):
         msg_id = self.get_argument("id", None)
@@ -246,6 +247,12 @@ class UploadHandler(BaseHandler):
         })
 
         self.write({"status": "ok", "message": record})
+
+
+class MonthsHandler(BaseHandler):
+    def get(self):
+        months = self.state.db.get_recorded_months()
+        self.write({"status": "ok", "months": months})
 
 
 class SystemInfoHandler(BaseHandler):
@@ -414,6 +421,7 @@ def create_app(data_dir: str, static_dir: str, port: int) -> tornado.web.Applica
     handlers = [
         (r"/ws", WebSocketHandler),
         (r"/api/messages", MessagesHandler),
+        (r"/api/months", MonthsHandler),
         (r"/api/upload", UploadHandler),
         (r"/api/system/info", SystemInfoHandler),
         (r"/api/system/clipboard", ClipboardHandler),

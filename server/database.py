@@ -2,6 +2,7 @@ import sqlite3
 import os
 import time
 import logging
+from datetime import datetime
 from typing import List, Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -62,9 +63,32 @@ class Database:
             conn.commit()
         return msg
 
-    def get_messages(self, limit: int = 50, before_ts: Optional[int] = None, search: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_messages(
+        self,
+        limit: int = 50,
+        before_ts: Optional[int] = None,
+        search: Optional[str] = None,
+        month: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         query = "SELECT * FROM messages WHERE 1=1"
         params: List[Any] = []
+
+        if month:
+            try:
+                parts = month.split('-')
+                if len(parts) == 2:
+                    y, m = int(parts[0]), int(parts[1])
+                    start_dt = datetime(y, m, 1)
+                    if m == 12:
+                        end_dt = datetime(y + 1, 1, 1)
+                    else:
+                        end_dt = datetime(y, m + 1, 1)
+                    start_ts = int(start_dt.timestamp() * 1000)
+                    end_ts = int(end_dt.timestamp() * 1000)
+                    query += " AND timestamp >= ? AND timestamp < ?"
+                    params.extend([start_ts, end_ts])
+            except Exception as e:
+                logger.warning(f"Invalid month parameter '{month}': {e}")
 
         if before_ts:
             query += " AND timestamp < ?"
@@ -75,16 +99,20 @@ class Database:
             search_param = f"%{search}%"
             params.extend([search_param, search_param])
 
-        query += " ORDER BY timestamp DESC LIMIT ?"
-        params.append(limit)
+        if month:
+            query += " ORDER BY timestamp ASC LIMIT 10000"
+        else:
+            query += " ORDER BY timestamp DESC LIMIT ?"
+            params.append(limit)
 
         with self.get_conn() as conn:
             cursor = conn.cursor()
             cursor.execute(query, params)
             rows = cursor.fetchall()
             messages = [dict(row) for row in rows]
-            # Return in chronological order (oldest first for chat timeline display)
-            messages.reverse()
+            if not month:
+                # Return in chronological order (oldest first for chat timeline display)
+                messages.reverse()
             return messages
 
     def get_message_by_id(self, msg_id: str) -> Optional[Dict[str, Any]]:
@@ -121,3 +149,19 @@ class Database:
                 "total_messages": count,
                 "total_file_size": total_size
             }
+
+    def get_recorded_months(self) -> List[Dict[str, Any]]:
+        with self.get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    strftime('%Y-%m', timestamp / 1000, 'unixepoch', 'localtime') AS month,
+                    COUNT(*) AS count,
+                    COALESCE(SUM(file_size), 0) AS total_file_size
+                FROM messages 
+                WHERE timestamp IS NOT NULL
+                GROUP BY month 
+                ORDER BY month DESC
+            """)
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]

@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import tempfile
+import unittest
 import urllib.parse
 from tornado.testing import AsyncHTTPTestCase, gen_test
 from tornado.websocket import websocket_connect
@@ -83,6 +84,21 @@ class TestServerApp(AsyncHTTPTestCase):
         msg_data = json.loads(msg_resp.body)
         self.assertEqual(len(msg_data["messages"]), 1)
         self.assertEqual(msg_data["messages"][0]["file_name"], filename)
+
+    def test_months_api(self):
+        # Months endpoint should return ok and a list
+        response = self.fetch("/api/months")
+        self.assertEqual(response.code, 200)
+        data = json.loads(response.body)
+        self.assertEqual(data["status"], "ok")
+        self.assertIsInstance(data["months"], list)
+
+        # Query messages with month parameter
+        msg_resp = self.fetch("/api/messages?month=2026-09")
+        self.assertEqual(msg_resp.code, 200)
+        msg_data = json.loads(msg_resp.body)
+        self.assertEqual(msg_data["status"], "ok")
+        self.assertIsInstance(msg_data["messages"], list)
 
     @gen_test
     async def test_websocket_chat(self):

@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=4">
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=4">
   <link rel="apple-touch-icon" href="/icon-192.png?v=4">
-  <link rel="stylesheet" href="/css/style.css?v=6">
+  <link rel="stylesheet" href="/css/style.css?v=7">
 </head>
 <body>
   <div id="app-container">
@@ -55,6 +55,14 @@
             <path d="M12 21v-1"></path>
           </svg>
         </button>
+        <button class="icon-btn" id="open-calendar-btn" title="按月份浏览">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="4" rx="2"></rect>
+            <line x1="16" x2="16" y1="2" y2="6"></line>
+            <line x1="8" x2="8" y1="2" y2="6"></line>
+            <line x1="3" x2="21" y1="10" y2="10"></line>
+          </svg>
+        </button>
 
         <button class="icon-btn" id="toggle-search-btn" title="搜索记录">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -71,6 +79,15 @@
         </button>
       </div>
     </header>
+
+    <!-- Month History Floating Banner -->
+    <div id="history-banner" style="display: none;">
+      <div class="history-banner-left">
+        <span>📅 正在查看 <strong id="history-month-label">2026年9月</strong></span>
+        <span class="history-banner-count" id="history-banner-count">共 0 条记录</span>
+      </div>
+      <button id="exit-history-btn" class="exit-history-btn" title="切回实时最新消息流">返回实时</button>
+    </div>
 
     <!-- Collapsible Search Bar -->
     <div id="search-bar">
@@ -161,6 +178,20 @@
     </div>
   </div>
 
+  <!-- Month Selector Modal -->
+  <div class="modal-mask" id="month-modal">
+    <div class="modal-box month-modal-box">
+      <div class="modal-header">
+        <div class="modal-title">📅 按月份浏览历史</div>
+        <button class="close-btn" id="close-month-modal">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--text-sub);padding:0 2px 10px;">选择月份独立载入当月记录，高效查阅且不增加内存负担。</div>
+      <div id="month-list" class="month-list">
+        <!-- Dynamically rendered list items -->
+      </div>
+    </div>
+  </div>
+
   <!-- Settings Modal -->
   <div class="modal-mask" id="settings-modal">
     <div class="modal-box">
@@ -213,6 +244,6 @@
   <div id="toast">已复制到剪贴板</div>
 
   <script src="/js/qrcode.min.js"></script>
-  <script src="/js/app.js?v=5"></script>
+  <script src="/js/app.js?v=7"></script>
 </body>
 </html>

@@ -118,5 +118,40 @@ class TestLinkFlow(unittest.TestCase):
         full_thumb_path = os.path.join(self.thumbs_dir, thumb_name)
         self.assertTrue(os.path.exists(full_thumb_path))
 
+    def test_months_query(self):
+        # Insert messages in different months
+        t_sep = 1788220800000  # 2026-09-01 16:00:00 (approx)
+        t_aug = 1785542400000  # 2026-08-01 16:00:00 (approx)
+
+        self.db.insert_message({
+            "id": "m-aug",
+            "timestamp": t_aug,
+            "sender": "pc",
+            "msg_type": "text",
+            "content": "8月旧消息"
+        })
+        self.db.insert_message({
+            "id": "m-sep",
+            "timestamp": t_sep,
+            "sender": "phone",
+            "msg_type": "text",
+            "content": "9月新消息"
+        })
+
+        months = self.db.get_recorded_months()
+        self.assertGreaterEqual(len(months), 2)
+        month_names = [m["month"] for m in months]
+        self.assertIn("2026-08", month_names)
+        self.assertIn("2026-09", month_names)
+
+        # Query specific month
+        aug_msgs = self.db.get_messages(month="2026-08")
+        self.assertEqual(len(aug_msgs), 1)
+        self.assertEqual(aug_msgs[0]["id"], "m-aug")
+
+        sep_msgs = self.db.get_messages(month="2026-09")
+        self.assertEqual(len(sep_msgs), 1)
+        self.assertEqual(sep_msgs[0]["id"], "m-sep")
+
 if __name__ == "__main__":
     unittest.main()

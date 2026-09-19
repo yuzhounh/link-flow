@@ -23,6 +23,7 @@
   let isHost = !isMobile && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
   let qrcodeObj = null;
   let allMessages = [];
+  let currentViewMonth = null;
 
   // DOM elements
   const chatHistory = document.getElementById('chat-history');
@@ -32,6 +33,16 @@
   const statusText = document.getElementById('status-text');
   const dropZone = document.getElementById('drop-zone');
   const toast = document.getElementById('toast');
+
+  // Month & History Banner DOM
+  const openCalendarBtn = document.getElementById('open-calendar-btn');
+  const monthModal = document.getElementById('month-modal');
+  const closeMonthModal = document.getElementById('close-month-modal');
+  const monthList = document.getElementById('month-list');
+  const historyBanner = document.getElementById('history-banner');
+  const historyMonthLabel = document.getElementById('history-month-label');
+  const historyBannerCount = document.getElementById('history-banner-count');
+  const exitHistoryBtn = document.getElementById('exit-history-btn');
 
   // Modals
   const qrModal = document.getElementById('qr-modal');
@@ -133,15 +144,28 @@
       }
     } else if (data.type === 'new_message') {
       const msg = data.message;
-      allMessages.push(msg);
-      appendMessageToUI(msg, true);
+      if (currentViewMonth) {
+        const msgMonth = getLocalMonthString(msg.timestamp);
+        if (msgMonth === currentViewMonth) {
+          allMessages.push(msg);
+          appendMessageToUI(msg, true);
+          updateHistoryBannerCount();
+        } else {
+          showToast(`收到来自${msg.sender === 'phone' ? '📱 手机' : '💻 电脑'}的新消息，点击「返回实时」查看`);
+        }
+      } else {
+        allMessages.push(msg);
+        appendMessageToUI(msg, true);
+      }
     } else if (data.type === 'message_deleted') {
       const row = document.getElementById(`msg-${data.id}`);
       if (row) row.remove();
       allMessages = allMessages.filter(m => m.id !== data.id);
+      if (currentViewMonth) updateHistoryBannerCount();
     } else if (data.type === 'messages_cleared') {
       chatHistory.innerHTML = '';
       allMessages = [];
+      if (currentViewMonth) exitHistoryMode();
       showToast('聊天记录已清空');
     }
   }
@@ -637,7 +661,173 @@
     copyToClipboard(qrUrlText.textContent);
   });
 
-  // 10. Settings Modal
+  // 10. Month Browsing & Calendar Modal
+  function getLocalMonthString(timestamp) {
+    const d = new Date(timestamp);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }
+
+  function formatMonthLabel(monthStr) {
+    if (!monthStr || !monthStr.includes('-')) return monthStr || '';
+    const [y, m] = monthStr.split('-');
+    return `${y}年${parseInt(m, 10)}月`;
+  }
+
+  function formatBytes(bytes) {
+    if (!bytes || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = bytes;
+    let i = 0;
+    while (size >= 1024 && i < units.length - 1) {
+      size /= 1024;
+      i++;
+    }
+    return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+  }
+
+  function updateHistoryBannerCount() {
+    if (historyBannerCount) {
+      historyBannerCount.textContent = `共 ${allMessages.length} 条记录`;
+    }
+  }
+
+  async function loadMonthList() {
+    if (!monthList) return;
+    monthList.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-sub);font-size:13px;">正在加载月份数据...</div>';
+    try {
+      const res = await fetch('/api/months');
+      const data = await res.json();
+      if (data.status !== 'ok') {
+        monthList.innerHTML = '<div class="month-empty-state">获取月份失败</div>';
+        return;
+      }
+
+      const months = data.months || [];
+      let html = '';
+
+      // Realtime latest messages item at top
+      const isRealtime = currentViewMonth === null;
+      html += `
+        <div class="month-item ${isRealtime ? 'active' : ''}" data-month="">
+          <div class="month-item-info">
+            <div class="month-item-title">
+              <span>⚡ 实时最新消息</span>
+              ${isRealtime ? '<span style="font-size:11px;color:var(--primary);font-weight:normal;">(当前)</span>' : ''}
+            </div>
+            <div class="month-item-meta">显示最近动态与持续同步</div>
+          </div>
+          <span class="month-item-badge">实时</span>
+        </div>
+      `;
+
+      if (months.length === 0) {
+        html += '<div class="month-empty-state">暂无历史月份记录</div>';
+      } else {
+        months.forEach(m => {
+          const isCurrent = currentViewMonth === m.month;
+          html += `
+            <div class="month-item ${isCurrent ? 'active' : ''}" data-month="${m.month}">
+              <div class="month-item-info">
+                <div class="month-item-title">
+                  <span>📅 ${formatMonthLabel(m.month)}</span>
+                  ${isCurrent ? '<span style="font-size:11px;color:var(--primary);font-weight:normal;">(正在浏览)</span>' : ''}
+                </div>
+                <div class="month-item-meta">${m.count} 条记录 · 累计文件 ${formatBytes(m.file_size)}</div>
+              </div>
+              <span class="month-item-badge">${m.count} 条</span>
+            </div>
+          `;
+        });
+      }
+
+      monthList.innerHTML = html;
+
+      // Click binding
+      monthList.querySelectorAll('.month-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const targetMonth = item.getAttribute('data-month');
+          if (!targetMonth) {
+            exitHistoryMode();
+            if (monthModal) monthModal.classList.remove('open');
+          } else {
+            selectMonth(targetMonth);
+          }
+        });
+      });
+    } catch (err) {
+      console.error('Failed to load months', err);
+      monthList.innerHTML = '<div class="month-empty-state">加载失败，请检查网络</div>';
+    }
+  }
+
+  async function selectMonth(monthStr) {
+    if (monthModal) monthModal.classList.remove('open');
+    showToast(`正在载入 ${formatMonthLabel(monthStr)} 记录...`);
+    try {
+      const res = await fetch(`/api/messages?month=${monthStr}`);
+      const data = await res.json();
+      if (data.status === 'ok') {
+        currentViewMonth = monthStr;
+        allMessages = data.messages || [];
+        renderMessages(allMessages);
+        if (historyMonthLabel) historyMonthLabel.textContent = formatMonthLabel(monthStr);
+        updateHistoryBannerCount();
+        if (historyBanner) historyBanner.style.display = 'flex';
+        showToast(`已切换至 ${formatMonthLabel(monthStr)}（共 ${allMessages.length} 条记录）`);
+      } else {
+        showToast('获取该月记录失败');
+      }
+    } catch (err) {
+      console.error('Failed to select month', err);
+      showToast('载入失败，请重试');
+    }
+  }
+
+  async function exitHistoryMode() {
+    if (currentViewMonth === null) return;
+    currentViewMonth = null;
+    if (historyBanner) historyBanner.style.display = 'none';
+    showToast('正在切回实时消息...');
+    try {
+      const res = await fetch('/api/messages?limit=100');
+      const data = await res.json();
+      if (data.status === 'ok') {
+        allMessages = data.messages || [];
+        renderMessages(allMessages);
+        showToast('已切回实时最新消息');
+      }
+    } catch (err) {
+      console.error('Failed to exit history mode', err);
+    }
+  }
+
+  if (openCalendarBtn) {
+    openCalendarBtn.addEventListener('click', () => {
+      if (monthModal) monthModal.classList.add('open');
+      loadMonthList();
+    });
+  }
+
+  if (closeMonthModal) {
+    closeMonthModal.addEventListener('click', () => {
+      if (monthModal) monthModal.classList.remove('open');
+    });
+  }
+
+  if (exitHistoryBtn) {
+    exitHistoryBtn.addEventListener('click', exitHistoryMode);
+  }
+
+  // Close modals on clicking outside mask
+  window.addEventListener('click', (e) => {
+    if (qrModal && e.target === qrModal) qrModal.classList.remove('open');
+    if (monthModal && e.target === monthModal) monthModal.classList.remove('open');
+    if (settingsModal && e.target === settingsModal) settingsModal.classList.remove('open');
+  });
+
+  // 11. Settings Modal
   openSettingsBtn.addEventListener('click', async () => {
     try {
       const res = await fetch('/api/system/info');
@@ -676,7 +866,7 @@
     }
   });
 
-  // 11. Lightbox Image
+  // 12. Lightbox Image
   function openLightbox(src) {
     lightboxImg.src = src;
     lightboxMask.classList.add('open');
@@ -686,7 +876,7 @@
     lightboxMask.classList.remove('open');
   });
 
-  // 12. Search Filtering
+  // 13. Search Filtering
   toggleSearchBtn.addEventListener('click', () => {
     searchBar.classList.toggle('active');
     if (searchBar.classList.contains('active')) {
@@ -717,7 +907,7 @@
     renderMessages(filtered);
   });
 
-  // 13. Toast helper
+  // 14. Toast helper
   let toastTimer = null;
   function showToast(text) {
     if (toastTimer) clearTimeout(toastTimer);
