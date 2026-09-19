@@ -64,20 +64,26 @@
   const cameraInput = document.getElementById('camera-input');
 
   // Theme initialization
-  const savedTheme = localStorage.getItem('linkflow_theme');
-  if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    settingDarkTheme.checked = true;
-  }
-
-  settingDarkTheme.addEventListener('change', (e) => {
-    if (e.target.checked) {
+  const themeColorMeta = document.getElementById('theme-color-meta');
+  function applyTheme(isDark) {
+    if (isDark) {
       document.documentElement.setAttribute('data-theme', 'dark');
-      localStorage.setItem('linkflow_theme', 'dark');
+      if (themeColorMeta) themeColorMeta.content = '#1f1f1f';
+      if (settingDarkTheme) settingDarkTheme.checked = true;
     } else {
       document.documentElement.removeAttribute('data-theme');
-      localStorage.setItem('linkflow_theme', 'light');
+      if (themeColorMeta) themeColorMeta.content = '#f7f7f7';
+      if (settingDarkTheme) settingDarkTheme.checked = false;
     }
+  }
+
+  const savedTheme = localStorage.getItem('linkflow_theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(savedTheme === 'dark' || (!savedTheme && prefersDark));
+
+  settingDarkTheme.addEventListener('change', (e) => {
+    applyTheme(e.target.checked);
+    localStorage.setItem('linkflow_theme', e.target.checked ? 'dark' : 'light');
   });
 
   // 3. WebSocket Connection

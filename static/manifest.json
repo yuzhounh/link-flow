@@ -3,8 +3,8 @@
   "short_name": "LinkFlow",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#07c160",
-  "theme_color": "#07c160",
+  "background_color": "#ededed",
+  "theme_color": "#f7f7f7",
   "description": "局域网私人双向文件与文字传输助手",
   "icons": [
     {
