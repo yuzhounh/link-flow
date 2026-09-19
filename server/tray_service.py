@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import webbrowser
 import logging
 from typing import Optional, Callable
@@ -53,9 +54,12 @@ class LinkFlowTray:
 
     def open_files_folder(self):
         try:
-            if not os.path.exists(self.files_dir):
-                os.makedirs(self.files_dir, exist_ok=True)
-            os.startfile(self.files_dir)
+            # Directly open the current month directory where latest files are stored
+            month_str = time.strftime("%Y-%m")
+            current_month_dir = os.path.join(self.files_dir, month_str)
+            if not os.path.exists(current_month_dir):
+                os.makedirs(current_month_dir, exist_ok=True)
+            os.startfile(current_month_dir)
         except Exception as e:
             logger.warning(f"Failed to open folder: {e}")
 
