@@ -259,7 +259,8 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 21px;
+  line-height: 1;
   flex-shrink: 0;
   box-shadow: var(--shadow-sm);
   user-select: none;
@@ -884,10 +885,11 @@ input:checked + .slider:before {
     max-width: 88%;
   }
   .sender-avatar {
-    width: 32px;
-    height: 32px;
-    font-size: 15px;
+    width: 34px;
+    height: 34px;
+    font-size: 19px;
     border-radius: 8px;
+    line-height: 1;
   }
   .bubble {
     font-size: 15px;
