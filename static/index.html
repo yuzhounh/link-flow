@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=4">
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=4">
   <link rel="apple-touch-icon" href="/icon-192.png?v=4">
-  <link rel="stylesheet" href="/css/style.css?v=8">
+  <link rel="stylesheet" href="/css/style.css?v=9">
 </head>
 <body>
   <div id="app-container">
@@ -136,10 +136,9 @@
       </div>
 
       <div class="input-row">
-        <textarea id="message-input" rows="1" placeholder="输入文字，可拖拽文件或直接 Ctrl+V 粘贴截图..."></textarea>
-        <button class="send-btn" id="send-btn">
-          <span>发送</span>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <textarea id="message-input" rows="2" placeholder="输入文字，可拖拽文件或直接 Ctrl+V 粘贴截图..."></textarea>
+        <button class="send-btn" id="send-btn" title="发送 (Enter)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
             <line x1="22" y1="2" x2="11" y2="13"></line>
             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
           </svg>
@@ -244,6 +243,6 @@
   <div id="toast">已复制到剪贴板</div>
 
   <script src="/js/qrcode.min.js"></script>
-  <script src="/js/app.js?v=8"></script>
+  <script src="/js/app.js?v=9"></script>
 </body>
 </html>
