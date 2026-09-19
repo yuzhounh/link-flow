@@ -307,6 +307,13 @@ class OpenFileHandler(BaseHandler):
             self.write({"error": str(e)})
 
 
+class NoCacheStaticFileHandler(tornado.web.StaticFileHandler):
+    def set_extra_headers(self, path):
+        self.set_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.set_header("Pragma", "no-cache")
+        self.set_header("Expires", "0")
+
+
 def create_app(data_dir: str, static_dir: str, port: int) -> tornado.web.Application:
     state = AppState(data_dir=data_dir, port=port)
     settings = {
@@ -325,8 +332,8 @@ def create_app(data_dir: str, static_dir: str, port: int) -> tornado.web.Applica
         # Files and thumbnails static route
         (r"/files/(.*)", tornado.web.StaticFileHandler, {"path": state.files_dir}),
         (r"/thumbs/(.*)", tornado.web.StaticFileHandler, {"path": state.thumbs_dir}),
-        # Frontend UI static route
-        (r"/(.*)", tornado.web.StaticFileHandler, {"path": static_dir, "default_filename": "index.html"}),
+        # Frontend UI static route (disable cache for immediate updates)
+        (r"/(.*)", NoCacheStaticFileHandler, {"path": static_dir, "default_filename": "index.html"}),
     ]
 
     return tornado.web.Application(handlers, **settings)
