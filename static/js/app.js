@@ -20,6 +20,7 @@
   let allIps = [];
   let port = location.port || (location.protocol === 'https:' ? '443' : '80');
   let autoClipboard = true;
+  let isHost = !isMobile && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
   let qrcodeObj = null;
   let allMessages = [];
 
@@ -123,6 +124,13 @@
       port = data.port || location.port;
       autoClipboard = data.auto_clipboard;
       settingAutoClipboard.checked = autoClipboard;
+      if (typeof data.is_host === 'boolean') {
+        const oldIsHost = isHost;
+        isHost = data.is_host;
+        if (oldIsHost !== isHost && allMessages.length > 0) {
+          renderMessages(allMessages);
+        }
+      }
     } else if (data.type === 'new_message') {
       const msg = data.message;
       allMessages.push(msg);
@@ -158,6 +166,13 @@
         allIps = infoData.all_ips || [lanIp];
         port = infoData.port;
         autoClipboard = infoData.auto_clipboard;
+        if (typeof infoData.is_host === 'boolean') {
+          const oldIsHost = isHost;
+          isHost = infoData.is_host;
+          if (oldIsHost !== isHost && allMessages.length > 0) {
+            renderMessages(allMessages);
+          }
+        }
         settingAutoClipboard.checked = autoClipboard;
         updateStorageStats(infoData.stats);
         setupIpSelector();
@@ -301,13 +316,12 @@
           <div class="file-meta">📄 PDF · ${formatFileSize(msg.file_size)}</div>
         </div>
         <div class="file-ops">
-          <a class="file-op-btn" href="/files/${msg.file_path}" download="${msg.file_name}" title="下载">⬇️</a>
-          ${!isMobile ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : ''}
+          ${isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : `<a class="file-op-btn" href="/files/${msg.file_path}" download="${msg.file_name}" title="下载保存">⬇️</a>`}
         </div>
       `;
       bubble.appendChild(infoRow);
 
-      if (!isMobile) {
+      if (isHost) {
         const btn = infoRow.querySelector('.open-folder-btn');
         if (btn) btn.onclick = () => revealInFolder(msg.id);
       }
@@ -324,11 +338,10 @@
           <div class="file-meta">${ext} · ${formatFileSize(msg.file_size)}</div>
         </div>
         <div class="file-ops">
-          <a class="file-op-btn" href="/files/${msg.file_path}" download="${msg.file_name}" title="下载">⬇️</a>
-          ${!isMobile ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : ''}
+          ${isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : `<a class="file-op-btn" href="/files/${msg.file_path}" download="${msg.file_name}" title="下载保存">⬇️</a>`}
         </div>
       `;
-      if (!isMobile) {
+      if (isHost) {
         const btn = bubble.querySelector('.open-folder-btn');
         if (btn) btn.onclick = () => revealInFolder(msg.id);
       }

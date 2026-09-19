@@ -75,12 +75,16 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
 
     def open(self):
         self.state.ws_clients.add(self)
+        client_ip = self.request.remote_ip
+        local_ips = {"127.0.0.1", "::1"}.union(self.state.all_ips)
+        is_host = client_ip in local_ips
         # Send welcome / connected status
         self.write_message(json.dumps({
             "type": "connected",
             "lan_ip": self.state.lan_ip,
             "port": self.state.port,
-            "auto_clipboard": self.state.auto_clipboard
+            "auto_clipboard": self.state.auto_clipboard,
+            "is_host": is_host
         }))
 
     def on_message(self, message):
@@ -247,12 +251,16 @@ class UploadHandler(BaseHandler):
 class SystemInfoHandler(BaseHandler):
     def get(self):
         stats = self.state.db.get_stats()
+        client_ip = self.request.remote_ip
+        local_ips = {"127.0.0.1", "::1"}.union(self.state.all_ips)
+        is_host = client_ip in local_ips
         self.write({
             "status": "ok",
             "lan_ip": self.state.lan_ip,
             "all_ips": self.state.all_ips,
             "port": self.state.port,
             "auto_clipboard": self.state.auto_clipboard,
+            "is_host": is_host,
             "stats": stats
         })
 
