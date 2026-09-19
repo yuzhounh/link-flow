@@ -1,16 +1,20 @@
 @echo off
-chcp 65001 > nul
-title LinkFlow - 私人文件传输助手
-
+title LinkFlow - Private Transfer Assistant
 cd /d "%~dp0"
 
-echo 正在启动 LinkFlow 局域网私人传输助手...
-echo =======================================================
+set "PY_CMD=python"
+if exist "C:\ProgramData\Anaconda3\python.exe" (
+    set "PY_CMD=C:\ProgramData\Anaconda3\python.exe"
+)
 
-python main.py
+echo Starting LinkFlow server...
+"%PY_CMD%" main.py
 
 if errorlevel 1 (
     echo.
-    echo 启动失败，请检查 Python 是否已正确配置在环境变量中。
+    echo ========================================================
+    echo  Failed to start LinkFlow.
+    echo  Please ensure Python is installed and accessible.
+    echo ========================================================
     pause
 )

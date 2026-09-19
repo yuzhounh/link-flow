@@ -1,5 +1,14 @@
 import os
 import sys
+
+# Ensure UTF-8 and unbuffered output on Windows
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
+        sys.stderr.reconfigure(encoding="utf-8", line_buffering=True)
+    except Exception:
+        pass
+
 import webbrowser
 import logging
 import tornado.ioloop
@@ -35,21 +44,20 @@ def main():
     phone_url = f"http://{lan_ip}:{port}"
 
     print("=" * 60)
-    print("  LinkFlow - 私人文件传输助手 (双向局域网聊天传输)")
+    print("  LinkFlow - 私人文件传输助手 (局域网双向极速传输)")
     print("=" * 60)
-    print(f" [PC 电脑端本地地址] : {pc_url}")
-    print(f" [手机端局域网地址]   : {phone_url}")
+    print(f" [PC 电脑本地入口] : {pc_url}")
+    print(f" [手机扫码访问入口] : {phone_url}")
     if len(all_ips) > 1:
         print(" [其他可用局域网 IP] :")
         for ip in all_ips:
             if ip != lan_ip:
                 print(f"   - http://{ip}:{port}")
     print("=" * 60)
-    print(" 手机与电脑连接同一 Wi-Fi，用手机浏览器打开上述地址即可直接使用！")
+    print(" 手机（如 Redmi K80 Pro）与电脑连接同一 Wi-Fi，浏览器打开上述地址即可。")
     print(" 正在打开电脑端界面...")
     print("=" * 60)
 
-    # Automatically open local browser on launch
     try:
         webbrowser.open(pc_url)
     except Exception as e:
