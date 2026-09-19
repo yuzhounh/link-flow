@@ -4,13 +4,11 @@
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
   const currentDevice = isMobile ? 'phone' : 'pc';
 
-  const deviceTag = document.getElementById('device-tag');
-  if (deviceTag) {
-    deviceTag.textContent = isMobile ? '📱 手机端' : '💻 电脑端';
-  }
   if (isMobile) {
+    document.documentElement.classList.add('is-mobile');
     document.body.classList.add('is-mobile');
   } else {
+    document.documentElement.classList.add('is-desktop');
     document.body.classList.add('is-desktop');
   }
 
@@ -256,6 +254,39 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function splitFileName(filename) {
+    if (!filename) return { baseName: '', ext: '' };
+    const name = String(filename);
+    const lower = name.toLowerCase();
+    if (lower.endsWith('.tar.gz')) {
+      return {
+        baseName: name.slice(0, -7),
+        ext: name.slice(-7)
+      };
+    }
+    const lastDot = name.lastIndexOf('.');
+    if (lastDot > 0) {
+      return {
+        baseName: name.slice(0, lastDot),
+        ext: name.slice(lastDot)
+      };
+    }
+    return {
+      baseName: name,
+      ext: ''
+    };
+  }
+
   function appendMessageToUI(msg, autoScroll = true) {
     const isSelf = (msg.sender === currentDevice);
     const row = document.createElement('div');
@@ -329,14 +360,16 @@
         icon = '📦';
       }
 
+      const { baseName, ext: fileExtWithDot } = splitFileName(msg.file_name || 'file');
+
       bubble.innerHTML = `
         <div class="file-icon-box">${icon}</div>
         <div class="file-info">
-          <a class="file-name" href="/files/${msg.file_path}" target="_blank" title="${msg.file_name}">${msg.file_name}</a>
+          <a class="file-name" href="/files/${encodeURI(msg.file_path || '')}" target="_blank" title="${escapeHtml(msg.file_name || '')}"><span class="file-name-base">${escapeHtml(baseName)}</span><span class="file-name-ext">${escapeHtml(fileExtWithDot)}</span></a>
           <div class="file-meta">${ext} · ${formatFileSize(msg.file_size)}</div>
         </div>
         <div class="file-ops">
-          ${isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : `<a class="file-op-btn" href="/files/${msg.file_path}" download="${msg.file_name}" title="下载保存">⬇️</a>`}
+          ${isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : `<a class="file-op-btn" href="/files/${encodeURI(msg.file_path || '')}" download="${escapeHtml(msg.file_name || '')}" title="下载保存">⬇️</a>`}
         </div>
       `;
       if (isHost) {
@@ -402,7 +435,7 @@
         timestamp: Date.now()
       }));
       messageInput.value = '';
-      messageInput.style.height = isMobile ? '50px' : '54px';
+      messageInput.style.height = '78px';
       messageInput.style.overflowY = 'hidden';
     } else {
       showToast('连接未就绪，正在重连...');
@@ -421,8 +454,8 @@
   // Auto-grow textarea smoothly
   messageInput.addEventListener('input', () => {
     messageInput.style.height = 'auto';
-    const baseH = isMobile ? 50 : 54;
-    const maxH = 120;
+    const baseH = 78;
+    const maxH = 160;
     const scrollH = messageInput.scrollHeight;
     const targetH = Math.min(Math.max(scrollH, baseH), maxH);
     messageInput.style.height = targetH + 'px';
@@ -570,7 +603,7 @@
         });
         const data = await res.json().catch(() => null);
         if (res.ok && data && data.status === 'ok') {
-          showToast('已复制文件，可直接在文件夹或应用中粘贴 (Ctrl+V)');
+          showToast('已复制文件');
         } else {
           const errMsg = (data && data.error) ? data.error : '文件复制失败，请检查服务状态';
           showToast(errMsg);
@@ -598,7 +631,7 @@
         }
       }
       copyToClipboard(fileUrl);
-      showToast('已复制文件下载链接到剪贴板');
+      showToast('已复制文件下载链接');
     }
   }
 

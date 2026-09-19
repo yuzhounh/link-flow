@@ -120,11 +120,6 @@ header {
   white-space: nowrap;
 }
 
-.app-title #device-tag {
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -479,55 +474,78 @@ header {
 .file-card {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 12px 14px;
-  min-width: 240px;
-  max-width: 360px;
+  padding: 10px 12px;
+  width: 280px;
+  max-width: 100%;
+  box-sizing: border-box;
   box-shadow: var(--shadow-sm);
 }
 
 .file-icon-box {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-sm);
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  background-color: var(--primary-light);
-  color: var(--primary);
+  font-size: 28px;
+  background: none;
   flex-shrink: 0;
+  line-height: 1;
+  user-select: none;
 }
 
 .file-info {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .file-name {
   font-size: 14px;
   font-weight: 500;
   color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   text-decoration: none;
-  display: block;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
   cursor: pointer;
+  line-height: 1.4;
 }
 
 .file-name:hover {
-  text-decoration: underline;
   color: var(--primary);
+}
+
+.file-name:hover .file-name-base,
+.file-name:hover .file-name-ext {
+  text-decoration: underline;
+}
+
+.file-name-base {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.file-name-ext {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .file-meta {
   font-size: 12px;
   color: var(--text-sub);
   margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .file-ops {
@@ -632,7 +650,19 @@ footer {
 }
 
 .input-toolbar {
-  display: none; /* Hide on PC; drag-and-drop & clipboard paste are primary */
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.is-desktop .input-toolbar,
+body.is-desktop .input-toolbar {
+  display: none !important;
+}
+
+.is-mobile .input-toolbar,
+body.is-mobile .input-toolbar {
+  display: flex;
   align-items: center;
   justify-content: space-between;
 }
@@ -672,16 +702,16 @@ footer {
 
 #message-input {
   flex: 1;
-  min-height: 54px;
-  max-height: 120px;
-  height: 54px;
-  padding: 7px 14px;
+  min-height: 78px;
+  max-height: 160px;
+  height: 78px;
+  padding: 8px 14px;
   border: 1px solid var(--border-color);
-  border-radius: 16px;
+  border-radius: 14px;
   background-color: var(--bg-input);
   color: var(--text-main);
   font-size: 14px;
-  line-height: 19px;
+  line-height: 20px;
   resize: none;
   outline: none;
   transition: border-color 0.2s;
@@ -1089,10 +1119,6 @@ input:checked + .slider:before {
   .app-title {
     font-size: 17px;
   }
-  .app-title #device-tag {
-    font-size: 10px;
-    padding: 1px 4px;
-  }
   .status-badge {
     font-size: 10px;
   }
@@ -1111,6 +1137,9 @@ input:checked + .slider:before {
   .message-row {
     max-width: 88%;
   }
+  .message-row:has(.file-card) {
+    max-width: 95%;
+  }
   .sender-avatar {
     width: 34px;
     height: 34px;
@@ -1127,8 +1156,13 @@ input:checked + .slider:before {
     padding: 5px 10px calc(6px + env(safe-area-inset-bottom, 0px));
     gap: 5px;
   }
-  .input-toolbar {
+  .is-mobile .input-toolbar,
+  body.is-mobile .input-toolbar {
     display: flex;
+  }
+  .is-desktop .input-toolbar,
+  body.is-desktop .input-toolbar {
+    display: none !important;
   }
   .tool-btn {
     width: 32px;
@@ -1141,15 +1175,15 @@ input:checked + .slider:before {
   }
   #message-input {
     font-size: 14px;
-    padding: 6px 12px;
-    height: 50px;
-    min-height: 50px;
-    border-radius: 16px;
-    line-height: 18px;
+    padding: 8px 12px;
+    height: 78px;
+    min-height: 78px;
+    border-radius: 14px;
+    line-height: 20px;
   }
   .input-row .send-btn {
-    width: 36px;
-    height: 36px;
-    margin-bottom: 7px;
+    width: 38px;
+    height: 38px;
+    margin-bottom: 8px;
   }
 }
