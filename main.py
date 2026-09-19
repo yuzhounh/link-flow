@@ -9,6 +9,7 @@ if sys.platform == "win32":
     except Exception:
         pass
 
+import threading
 import urllib.request
 import webbrowser
 import logging
@@ -17,6 +18,7 @@ import tornado.httpserver
 
 from server.app import create_app
 from server.network_utils import get_lan_ip, get_all_lan_ips, find_available_port
+from server.tray_service import LinkFlowTray, HAS_PYQT
 
 logging.basicConfig(
     level=logging.INFO,
@@ -88,10 +90,40 @@ def main():
     except Exception as e:
         logger.warning(f"Failed to auto-launch browser: {e}")
 
-    try:
-        tornado.ioloop.IOLoop.current().start()
-    except KeyboardInterrupt:
-        print("\nLinkFlow 服务已停止。")
+    loop = tornado.ioloop.IOLoop.current()
+
+    def stop_server():
+        loop.add_callback(loop.stop)
+
+    icon_path = os.path.join(static_dir, "icon.ico")
+    if not os.path.exists(icon_path):
+        icon_path = os.path.join(static_dir, "icon.png")
+
+    files_dir = os.path.join(data_dir, "files")
+    tray = LinkFlowTray(
+        port=port,
+        lan_ip=lan_ip,
+        files_dir=files_dir,
+        icon_path=icon_path,
+        on_exit=stop_server
+    )
+
+    if HAS_PYQT:
+        server_thread = threading.Thread(target=loop.start, name="TornadoServer", daemon=True)
+        server_thread.start()
+        print(" [系统托盘] 已常驻任务栏托盘 (右键唤出菜单，左键/双击打开主界面，支持一键退出)。")
+        try:
+            tray.run()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            stop_server()
+            print("\nLinkFlow 服务已停止。")
+    else:
+        try:
+            loop.start()
+        except KeyboardInterrupt:
+            print("\nLinkFlow 服务已停止。")
 
 if __name__ == "__main__":
     main()
