@@ -428,7 +428,7 @@ class CopyFileHandler(BaseHandler):
             msg = self.state.db.get_message_by_id(msg_id)
             if not msg or not msg.get("file_path"):
                 self.set_status(404)
-                self.write({"error": "File not found"})
+                self.write({"error": "未找到对应的文件记录"})
                 return
 
             full_path = os.path.normpath(os.path.join(self.state.files_dir, msg["file_path"]))
@@ -438,13 +438,13 @@ class CopyFileHandler(BaseHandler):
                     self.write({"status": "ok", "path": full_path, "file_name": msg.get("file_name", "")})
                 else:
                     self.set_status(500)
-                    self.write({"error": "Failed to set clipboard data"})
+                    self.write({"error": "Windows 剪贴板被其他应用占用，复制失败，请稍后重试"})
             else:
                 self.set_status(404)
-                self.write({"error": "File does not exist on disk"})
+                self.write({"error": "本地磁盘上未找到该物理文件"})
         except Exception as e:
             self.set_status(500)
-            self.write({"error": str(e)})
+            self.write({"error": f"复制异常: {str(e)}"})
 
 
 class NoCacheStaticFileHandler(tornado.web.StaticFileHandler):

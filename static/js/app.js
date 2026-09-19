@@ -568,18 +568,19 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: msg.id })
         });
-        const data = await res.json();
-        if (data.status === 'ok') {
+        const data = await res.json().catch(() => null);
+        if (res.ok && data && data.status === 'ok') {
           showToast('已复制文件，可直接在文件夹或应用中粘贴 (Ctrl+V)');
         } else {
-          showToast(data.error || '文件复制失败');
+          const errMsg = (data && data.error) ? data.error : '文件复制失败，请检查服务状态';
+          showToast(errMsg);
         }
       } catch (e) {
-        showToast('文件复制失败');
+        showToast('请求服务失败，请检查服务是否正常运行');
       }
     } else {
       const fileUrl = `${window.location.origin}/files/${msg.file_path}`;
-      const ext = (msg.file_name.split('.').pop() || '').toUpperCase();
+      const ext = (msg.file_name ? msg.file_name.split('.').pop() : '').toUpperCase();
       const isImg = ['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'BMP'].includes(ext);
       if (isImg && navigator.clipboard && window.ClipboardItem) {
         try {
@@ -597,7 +598,7 @@
         }
       }
       copyToClipboard(fileUrl);
-      showToast('已复制文件链接到剪贴板');
+      showToast('已复制文件下载链接到剪贴板');
     }
   }
 

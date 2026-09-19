@@ -39,6 +39,8 @@ if sys.platform == "win32":
         kernel32.GlobalLock.restype = wintypes.LPVOID
         kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
         kernel32.GlobalUnlock.restype = wintypes.BOOL
+        kernel32.GlobalFree.argtypes = [wintypes.HGLOBAL]
+        kernel32.GlobalFree.restype = wintypes.HGLOBAL
     except Exception as e:
         logger.error(f"Failed to bind Win32 clipboard APIs: {e}")
 
@@ -48,11 +50,11 @@ def set_clipboard_text(text: str) -> bool:
         return False
 
     opened = False
-    for _ in range(10):
+    for i in range(20):
         if user32.OpenClipboard(0):
             opened = True
             break
-        time.sleep(0.02)
+        time.sleep(0.02 + i * 0.005)
 
     if not opened:
         logger.warning("Could not open Windows clipboard (locked by another app)")
@@ -66,10 +68,15 @@ def set_clipboard_text(text: str) -> bool:
             return False
         p_mem = kernel32.GlobalLock(h_mem)
         if not p_mem:
+            if hasattr(kernel32, "GlobalFree"):
+                kernel32.GlobalFree(h_mem)
             return False
         ctypes.memmove(p_mem, data, len(data))
         kernel32.GlobalUnlock(h_mem)
         res = user32.SetClipboardData(CF_UNICODETEXT, h_mem)
+        if not res and hasattr(kernel32, "GlobalFree"):
+            kernel32.GlobalFree(h_mem)
+            return False
         return bool(res)
     except Exception as e:
         logger.error(f"Error setting clipboard: {e}")
@@ -83,11 +90,11 @@ def get_clipboard_text() -> str:
         return ""
 
     opened = False
-    for _ in range(10):
+    for i in range(20):
         if user32.OpenClipboard(0):
             opened = True
             break
-        time.sleep(0.02)
+        time.sleep(0.02 + i * 0.005)
 
     if not opened:
         return ""
@@ -125,11 +132,11 @@ def set_clipboard_files(file_paths: List[str]) -> bool:
     data = header + file_str.encode("utf-16le")
 
     opened = False
-    for _ in range(10):
+    for i in range(20):
         if user32.OpenClipboard(0):
             opened = True
             break
-        time.sleep(0.02)
+        time.sleep(0.02 + i * 0.005)
 
     if not opened:
         logger.warning("Could not open Windows clipboard for file copying (locked)")
@@ -142,10 +149,15 @@ def set_clipboard_files(file_paths: List[str]) -> bool:
             return False
         p_mem = kernel32.GlobalLock(h_mem)
         if not p_mem:
+            if hasattr(kernel32, "GlobalFree"):
+                kernel32.GlobalFree(h_mem)
             return False
         ctypes.memmove(p_mem, data, len(data))
         kernel32.GlobalUnlock(h_mem)
         res = user32.SetClipboardData(CF_HDROP, h_mem)
+        if not res and hasattr(kernel32, "GlobalFree"):
+            kernel32.GlobalFree(h_mem)
+            return False
         return bool(res)
     except Exception as e:
         logger.error(f"Error setting clipboard files: {e}")

@@ -128,5 +128,35 @@ class TestServerApp(AsyncHTTPTestCase):
 
         conn.close()
 
+    def test_copy_file_api(self):
+        # 1. Non-existent id returns 404
+        bad_resp = self.fetch("/api/system/copy-file", method="POST", headers={"Content-Type": "application/json"}, body=json.dumps({"id": "non-existent"}))
+        self.assertEqual(bad_resp.code, 404)
+
+        # 2. Upload a file then copy it
+        boundary = "----WebKitFormBoundaryCopyTest"
+        file_content = b"copy test content"
+        filename = "copy_test.txt"
+        body = (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="sender"\r\n\r\n'
+            f"pc\r\n"
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+            f"Content-Type: text/plain\r\n\r\n"
+        ).encode("utf-8") + file_content + f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+        headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
+        upload_resp = self.fetch("/api/upload", method="POST", headers=headers, body=body)
+        self.assertEqual(upload_resp.code, 200)
+        msg_id = json.loads(upload_resp.body)["message"]["id"]
+
+        # Call copy-file endpoint
+        copy_resp = self.fetch("/api/system/copy-file", method="POST", headers={"Content-Type": "application/json"}, body=json.dumps({"id": msg_id}))
+        self.assertEqual(copy_resp.code, 200)
+        copy_data = json.loads(copy_resp.body)
+        self.assertEqual(copy_data["status"], "ok")
+        self.assertEqual(copy_data["file_name"], filename)
+
 if __name__ == "__main__":
     unittest.main()
