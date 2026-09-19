@@ -1,6 +1,10 @@
 import os
 import sys
 
+base_dir = os.path.dirname(os.path.abspath(__file__))
+if base_dir not in sys.path:
+    sys.path.insert(0, base_dir)
+
 # Ensure UTF-8 and unbuffered output on Windows, handle pythonw None streams
 if sys.platform == "win32":
     if sys.stdout is None:
