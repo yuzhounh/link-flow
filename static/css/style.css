@@ -374,9 +374,24 @@ header {
 }
 
 /* Message Actions Menu on Hover */
+.bubble-wrapper {
+  position: relative;
+  max-width: 100%;
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.message-row.is-current-device .bubble-wrapper {
+  align-items: flex-end;
+}
+
+.message-row.is-peer-device .bubble-wrapper {
+  align-items: flex-start;
+}
+
 .bubble-actions {
   position: absolute;
-  top: -24px;
+  top: -26px;
   background: var(--bg-header);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
@@ -384,20 +399,36 @@ header {
   box-shadow: var(--shadow-sm);
   padding: 2px 4px;
   gap: 4px;
-  z-index: 5;
+  z-index: 10;
+  white-space: nowrap;
+  width: max-content;
+  max-width: none;
+}
+
+.bubble-actions::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 8px;
 }
 
 .message-row.is-current-device .bubble-actions {
   right: 0;
+  left: auto;
 }
 
 .message-row.is-peer-device .bubble-actions {
   left: 0;
+  right: auto;
 }
 
+.bubble-wrapper:hover .bubble-actions,
 .bubble:hover .bubble-actions,
 .bubble-actions.show {
   display: flex;
+  align-items: center;
 }
 
 .action-btn-mini {
@@ -408,9 +439,12 @@ header {
   cursor: pointer;
   color: var(--text-sub);
   border-radius: 3px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  user-select: none;
 }
 
 .action-btn-mini:hover {

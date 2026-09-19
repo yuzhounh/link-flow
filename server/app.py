@@ -18,10 +18,33 @@ import tornado.ioloop
 
 from .database import Database
 from .network_utils import get_lan_ip, get_all_lan_ips
-from .clipboard import set_clipboard_text, get_clipboard_text
+from .clipboard import set_clipboard_text, get_clipboard_text, set_clipboard_files
 from .thumb_service import generate_thumbnail
 
 logger = logging.getLogger(__name__)
+
+def delete_message_files(state, msg: Optional[Dict[str, Any]]):
+    """Delete physical file and thumbnail from disk when a message is deleted."""
+    if not msg:
+        return
+    file_path = msg.get("file_path")
+    if file_path:
+        full_path = os.path.normpath(os.path.join(state.files_dir, file_path))
+        if full_path.startswith(os.path.normpath(state.files_dir)) and os.path.isfile(full_path):
+            try:
+                os.remove(full_path)
+                logger.info(f"Deleted physical file: {full_path}")
+            except Exception as e:
+                logger.error(f"Failed to delete physical file {full_path}: {e}")
+    thumb_path = msg.get("thumb_path")
+    if thumb_path:
+        full_thumb = os.path.normpath(os.path.join(state.thumbs_dir, thumb_path))
+        if full_thumb.startswith(os.path.normpath(state.thumbs_dir)) and os.path.isfile(full_thumb):
+            try:
+                os.remove(full_thumb)
+                logger.info(f"Deleted physical thumb: {full_thumb}")
+            except Exception as e:
+                logger.error(f"Failed to delete physical thumb {full_thumb}: {e}")
 
 class AppState:
     def __init__(self, data_dir: str, port: int):
@@ -128,7 +151,9 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
             elif msg_type == "delete":
                 msg_id = data.get("id")
                 if msg_id:
-                    self.state.db.delete_message(msg_id)
+                    deleted = self.state.db.delete_message(msg_id)
+                    if deleted:
+                        delete_message_files(self.state, deleted)
                     self.state.broadcast({
                         "type": "message_deleted",
                         "id": msg_id
@@ -166,6 +191,7 @@ class MessagesHandler(BaseHandler):
         if msg_id:
             deleted = self.state.db.delete_message(msg_id)
             if deleted:
+                delete_message_files(self.state, deleted)
                 self.state.broadcast({"type": "message_deleted", "id": msg_id})
                 self.write({"status": "ok", "deleted": msg_id})
             else:
@@ -403,6 +429,33 @@ class OpenFileHandler(BaseHandler):
             self.write({"error": str(e)})
 
 
+class CopyFileHandler(BaseHandler):
+    def post(self):
+        try:
+            data = json.loads(self.request.body)
+            msg_id = data.get("id")
+            msg = self.state.db.get_message_by_id(msg_id)
+            if not msg or not msg.get("file_path"):
+                self.set_status(404)
+                self.write({"error": "File not found"})
+                return
+
+            full_path = os.path.normpath(os.path.join(self.state.files_dir, msg["file_path"]))
+            if os.path.isfile(full_path):
+                ok = set_clipboard_files([full_path])
+                if ok:
+                    self.write({"status": "ok", "path": full_path, "file_name": msg.get("file_name", "")})
+                else:
+                    self.set_status(500)
+                    self.write({"error": "Failed to set clipboard data"})
+            else:
+                self.set_status(404)
+                self.write({"error": "File does not exist on disk"})
+        except Exception as e:
+            self.set_status(500)
+            self.write({"error": str(e)})
+
+
 class NoCacheStaticFileHandler(tornado.web.StaticFileHandler):
     def set_extra_headers(self, path):
         self.set_header("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -426,6 +479,7 @@ def create_app(data_dir: str, static_dir: str, port: int) -> tornado.web.Applica
         (r"/api/system/info", SystemInfoHandler),
         (r"/api/system/clipboard", ClipboardHandler),
         (r"/api/system/open-file", OpenFileHandler),
+        (r"/api/system/copy-file", CopyFileHandler),
         # Files and thumbnails static route
         (r"/files/(.*)", tornado.web.StaticFileHandler, {"path": state.files_dir}),
         (r"/thumbs/(.*)", tornado.web.StaticFileHandler, {"path": state.thumbs_dir}),

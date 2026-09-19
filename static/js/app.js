@@ -277,33 +277,38 @@
     meta.textContent = `${msg.sender === 'phone' ? '手机' : '电脑'} · ${formatTime(msg.timestamp)}`;
     bodyWrap.appendChild(meta);
 
-    // Content Bubble based on msg_type
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble';
+    // Message Bubble Wrapper (contains bubble/card + unified action bar)
+    const bubbleWrapper = document.createElement('div');
+    bubbleWrapper.className = 'bubble-wrapper';
 
-    // Actions mini menu
+    // Actions mini menu (unified for text and all file types)
     const actions = document.createElement('div');
     actions.className = 'bubble-actions';
 
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'action-btn-mini';
+    copyBtn.innerHTML = '📋 复制';
+    copyBtn.onclick = (e) => {
+      e.stopPropagation();
+      copyMessage(msg);
+    };
+    actions.appendChild(copyBtn);
+
+    const isFileMsg = (msg.msg_type !== 'text');
     const delBtn = document.createElement('button');
     delBtn.className = 'action-btn-mini';
     delBtn.innerHTML = '🗑️ 删除';
     delBtn.onclick = (e) => {
       e.stopPropagation();
-      deleteMessage(msg.id);
+      deleteMessage(msg.id, isFileMsg);
     };
     actions.appendChild(delBtn);
 
-    if (msg.msg_type === 'text') {
-      const copyBtn = document.createElement('button');
-      copyBtn.className = 'action-btn-mini';
-      copyBtn.innerHTML = '📋 复制';
-      copyBtn.onclick = (e) => {
-        e.stopPropagation();
-        copyToClipboard(msg.content);
-      };
-      actions.appendChild(copyBtn);
+    // Content Bubble based on msg_type
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
 
+    if (msg.msg_type === 'text') {
       const textSpan = document.createElement('span');
       textSpan.innerHTML = escapeAndLinkText(msg.content);
       bubble.appendChild(textSpan);
@@ -371,8 +376,20 @@
       }
     }
 
-    bubble.appendChild(actions);
-    bodyWrap.appendChild(bubble);
+    bubbleWrapper.appendChild(bubble);
+    bubbleWrapper.appendChild(actions);
+
+    if (isMobile) {
+      bubbleWrapper.addEventListener('click', (e) => {
+        if (e.target.closest('a, button, video, audio')) return;
+        document.querySelectorAll('.bubble-actions.show').forEach(el => {
+          if (el !== actions) el.classList.remove('show');
+        });
+        actions.classList.toggle('show');
+      });
+    }
+
+    bodyWrap.appendChild(bubbleWrapper);
 
     row.appendChild(avatar);
     row.appendChild(bodyWrap);
@@ -569,6 +586,76 @@
     document.body.removeChild(ta);
   }
 
+  async function copyMessage(msg) {
+    if (msg.msg_type === 'text') {
+      copyToClipboard(msg.content);
+      return;
+    }
+
+    if (isHost) {
+      try {
+        const res = await fetch('/api/system/copy-file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: msg.id })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast('已复制文件，可直接在文件夹或应用中粘贴 (Ctrl+V)');
+        } else {
+          showToast(data.error || '文件复制失败');
+        }
+      } catch (e) {
+        showToast('文件复制失败');
+      }
+    } else {
+      const fileUrl = `${window.location.origin}/files/${msg.file_path}`;
+      const ext = (msg.file_name.split('.').pop() || '').toUpperCase();
+      const isImg = ['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'BMP'].includes(ext);
+      if (isImg && navigator.clipboard && window.ClipboardItem) {
+        try {
+          const resp = await fetch(fileUrl);
+          const blob = await resp.blob();
+          let clipBlob = blob;
+          if (blob.type !== 'image/png') {
+            clipBlob = await convertBlobToPng(blob);
+          }
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': clipBlob })]);
+          showToast('已复制图片到剪贴板');
+          return;
+        } catch (err) {
+          // Fallback to link copy
+        }
+      }
+      copyToClipboard(fileUrl);
+      showToast('已复制文件链接到剪贴板');
+    }
+  }
+
+  function convertBlobToPng(blob) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob((pngBlob) => {
+          if (pngBlob) resolve(pngBlob);
+          else reject(new Error('Canvas toBlob failed'));
+        }, 'image/png');
+      };
+      img.onerror = (e) => {
+        URL.revokeObjectURL(url);
+        reject(e);
+      };
+      img.src = url;
+    });
+  }
+
   function downloadFile(url, filename) {
     const a = document.createElement('a');
     a.href = url;
@@ -596,14 +683,25 @@
     }
   }
 
-  function deleteMessage(msgId) {
-    if (confirm('确定删除此消息吗？')) {
+  function deleteMessage(msgId, isFile = false) {
+    const tip = isFile ? '确定删除此文件及本地物理文件吗？' : '确定删除此消息吗？';
+    if (confirm(tip)) {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'delete', id: msgId }));
       } else {
         fetch(`/api/messages?id=${msgId}`, { method: 'DELETE' });
       }
     }
+  }
+
+  if (isMobile) {
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.bubble-wrapper')) {
+        document.querySelectorAll('.bubble-actions.show').forEach(el => {
+          el.classList.remove('show');
+        });
+      }
+    });
   }
 
   // 9. QR Code Modal

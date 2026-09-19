@@ -4,9 +4,14 @@ import sys
 import time
 import logging
 
+import struct
+import os
+from typing import List
+
 logger = logging.getLogger(__name__)
 
 CF_UNICODETEXT = 13
+CF_HDROP = 15
 GMEM_MOVEABLE = 0x0002
 
 user32 = None
@@ -102,3 +107,49 @@ def get_clipboard_text() -> str:
         return ""
     finally:
         user32.CloseClipboard()
+
+def set_clipboard_files(file_paths: List[str]) -> bool:
+    """Set physical files into Windows clipboard via CF_HDROP."""
+    if not user32 or not kernel32:
+        return False
+    if not file_paths:
+        return False
+
+    # Standard DROPFILES struct:
+    # DWORD pFiles = 20 (offset to file list)
+    # POINT pt = (0, 0)
+    # BOOL fNC = 0
+    # BOOL fWide = 1 (wide chars, UTF-16LE)
+    header = struct.pack("IIIII", 20, 0, 0, 0, 1)
+    file_str = "\0".join(os.path.normpath(os.path.abspath(p)) for p in file_paths) + "\0\0"
+    data = header + file_str.encode("utf-16le")
+
+    opened = False
+    for _ in range(10):
+        if user32.OpenClipboard(0):
+            opened = True
+            break
+        time.sleep(0.02)
+
+    if not opened:
+        logger.warning("Could not open Windows clipboard for file copying (locked)")
+        return False
+
+    try:
+        user32.EmptyClipboard()
+        h_mem = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+        if not h_mem:
+            return False
+        p_mem = kernel32.GlobalLock(h_mem)
+        if not p_mem:
+            return False
+        ctypes.memmove(p_mem, data, len(data))
+        kernel32.GlobalUnlock(h_mem)
+        res = user32.SetClipboardData(CF_HDROP, h_mem)
+        return bool(res)
+    except Exception as e:
+        logger.error(f"Error setting clipboard files: {e}")
+        return False
+    finally:
+        user32.CloseClipboard()
+
