@@ -172,23 +172,6 @@ header {
   color: var(--text-main);
 }
 
-.btn-qr {
-  background-color: var(--primary-light);
-  color: var(--primary);
-  border: 1px solid var(--primary);
-  padding: 0 10px;
-  width: auto;
-  height: 32px;
-  font-size: 13px;
-  font-weight: 500;
-  gap: 6px;
-  border-radius: var(--radius-sm);
-}
-
-.btn-qr:hover {
-  background-color: var(--primary);
-  color: #fff;
-}
 
 /* Search bar (collapsible) */
 #search-bar {
@@ -884,23 +867,6 @@ input:checked + .slider:before {
   }
   .status-badge {
     font-size: 10px;
-  }
-  /* On mobile, collapse "扫码连接" button to compact icon */
-  .btn-qr {
-    padding: 0;
-    width: 34px;
-    height: 34px;
-    border: none;
-    background: none;
-    color: var(--text-sub);
-    justify-content: center;
-  }
-  .btn-qr span {
-    display: none;
-  }
-  .btn-qr svg {
-    width: 18px;
-    height: 18px;
   }
   .header-actions {
     gap: 4px;
