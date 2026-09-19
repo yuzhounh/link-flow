@@ -1,0 +1,16 @@
+{
+  "name": "LinkFlow 私人传输",
+  "short_name": "LinkFlow",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07c160",
+  "theme_color": "#07c160",
+  "description": "局域网私人双向文件与文字传输助手",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
