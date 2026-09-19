@@ -440,6 +440,14 @@ header {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-decoration: none;
+  display: block;
+  cursor: pointer;
+}
+
+.file-name:hover {
+  text-decoration: underline;
+  color: var(--primary);
 }
 
 .file-meta {

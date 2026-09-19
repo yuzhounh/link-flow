@@ -95,20 +95,14 @@ class TestLinkFlow(unittest.TestCase):
         self.assertIsNotNone(deleted)
         self.assertEqual(len(self.db.get_messages()), 1)
 
-    def test_image_thumbnail_generation(self):
-        # Create a sample image
+    def test_image_no_thumbnail(self):
+        # Images are treated as files and do not generate thumbnails
         img_path = os.path.join(self.temp_dir.name, "test_photo.jpg")
         img = Image.new("RGB", (1920, 1080), color=(100, 150, 200))
         img.save(img_path, "JPEG")
 
         thumb_name = generate_thumbnail(img_path, self.thumbs_dir, "image/jpeg")
-        self.assertIsNotNone(thumb_name)
-        full_thumb_path = os.path.join(self.thumbs_dir, thumb_name)
-        self.assertTrue(os.path.exists(full_thumb_path))
-
-        with Image.open(full_thumb_path) as thumb_img:
-            self.assertLessEqual(thumb_img.width, 400)
-            self.assertLessEqual(thumb_img.height, 400)
+        self.assertIsNone(thumb_name)
 
     def test_pdf_thumbnail_generation(self):
         # Create a sample 1-page PDF using PyMuPDF

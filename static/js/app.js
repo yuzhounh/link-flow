@@ -271,24 +271,6 @@
       const textSpan = document.createElement('span');
       textSpan.innerHTML = escapeAndLinkText(msg.content);
       bubble.appendChild(textSpan);
-    } else if (msg.msg_type === 'image') {
-      bubble.className = 'image-bubble';
-      const img = document.createElement('img');
-      const imgSrc = msg.thumb_path ? `/thumbs/${msg.thumb_path}` : `/files/${msg.file_path}`;
-      img.src = imgSrc;
-      img.loading = 'lazy';
-      img.alt = msg.file_name;
-      img.onclick = () => openLightbox(`/files/${msg.file_path}`);
-      bubble.appendChild(img);
-
-      const dlBtn = document.createElement('button');
-      dlBtn.className = 'action-btn-mini';
-      dlBtn.innerHTML = '⬇️ 下载';
-      dlBtn.onclick = (e) => {
-        e.stopPropagation();
-        downloadFile(`/files/${msg.file_path}`, msg.file_name);
-      };
-      actions.appendChild(dlBtn);
     } else if (msg.msg_type === 'video') {
       bubble.className = 'video-card';
       const video = document.createElement('video');
@@ -318,7 +300,7 @@
       infoRow.className = 'pdf-info-row';
       infoRow.innerHTML = `
         <div class="file-info">
-          <div class="file-name" title="${msg.file_name}">${msg.file_name}</div>
+          <a class="file-name" href="/files/${msg.file_path}" target="_blank" title="${msg.file_name}">${msg.file_name}</a>
           <div class="file-meta">📄 PDF · ${formatFileSize(msg.file_size)}</div>
         </div>
         <div class="file-ops">
@@ -333,13 +315,15 @@
         if (btn) btn.onclick = () => revealInFolder(msg.id);
       }
     } else {
-      // Generic File Card
+      // File Card (Images and any general files)
       bubble.className = 'file-card';
       const ext = (msg.file_name.split('.').pop() || 'FILE').toUpperCase();
+      const isImg = ['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'BMP', 'SVG', 'HEIC', 'ICO', 'AVIF'].includes(ext);
+      const icon = isImg ? '🖼️' : '📦';
       bubble.innerHTML = `
-        <div class="file-icon-box">📦</div>
+        <div class="file-icon-box">${icon}</div>
         <div class="file-info">
-          <div class="file-name" title="${msg.file_name}">${msg.file_name}</div>
+          <a class="file-name" href="/files/${msg.file_path}" target="_blank" title="${msg.file_name}">${msg.file_name}</a>
           <div class="file-meta">${ext} · ${formatFileSize(msg.file_size)}</div>
         </div>
         <div class="file-ops">
