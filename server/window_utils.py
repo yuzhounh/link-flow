@@ -425,3 +425,118 @@ def open_folder_in_explorer(folder_path: str):
             force_foreground_window(target_hwnd)
 
     threading.Thread(target=_worker, daemon=True).start()
+
+
+def activate_linkflow_window() -> bool:
+    """Find and bring an existing browser window displaying LinkFlow ('文件传输助手') to the foreground.
+    
+    Returns True if an existing window was found and brought to front, False otherwise.
+    """
+    if sys.platform != "win32":
+        return False
+
+    try:
+        h_desk = user32.OpenDesktopW("default", 0, False, 0x01FF)
+        if h_desk:
+            user32.SetThreadDesktop(h_desk)
+    except Exception:
+        pass
+
+    target_hwnds = []
+
+    def enum_cb(hwnd, lparam):
+        try:
+            if user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+                length = user32.GetWindowTextLengthW(hwnd)
+                if length > 0:
+                    buf = ctypes.create_unicode_buffer(length + 1)
+                    user32.GetWindowTextW(hwnd, buf, length + 1)
+                    title = buf.value
+                    if "文件传输助手" in title:
+                        if not any(ex in title for ex in ["Antigravity", "Visual Studio", ".py", ".md", ".json", ".html"]):
+                            target_hwnds.append(hwnd)
+        except Exception:
+            pass
+        return True
+
+    cb = WNDENUMPROC(enum_cb)
+    user32.EnumWindows(cb, 0)
+
+    if target_hwnds:
+        hwnd = target_hwnds[0]
+        force_foreground_window(hwnd)
+        time.sleep(0.1)
+        force_foreground_window(hwnd)
+        return True
+
+    return False
+
+
+def open_or_activate_linkflow(port: int = 5837) -> bool:
+    """Activate existing LinkFlow window or open in default browser without duplicating tabs.
+    
+    1. First tries to find an existing browser window showing LinkFlow and brings it to front.
+    2. If not found in window titles, calls backend /api/system/wake to notify existing tab if connected.
+    3. If an existing local client is active, brings browser window to front.
+    4. If no existing client or window, launches default browser via webbrowser.open.
+    """
+    # 1. Direct window title matching (0ms, 0 tabs created)
+    if activate_linkflow_window():
+        return True
+
+    # 2. Check backend if any local browser tab is connected via WebSocket
+    has_active_tab = False
+    try:
+        import urllib.request
+        import json
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/system/wake",
+            data=b"{}",
+            headers={"Content-Type": "application/json", "User-Agent": "LinkFlow-Wake"}
+        )
+        with urllib.request.urlopen(req, timeout=0.8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if data.get("has_client"):
+                has_active_tab = True
+    except Exception:
+        pass
+
+    # If backend confirmed an active tab was woken up, check again if title updated
+    if has_active_tab:
+        time.sleep(0.1)
+        if activate_linkflow_window():
+            return True
+        # Bring frontmost browser window to foreground so the user sees the tab
+        try:
+            h_desk = user32.OpenDesktopW("default", 0, False, 0x01FF)
+            if h_desk:
+                user32.SetThreadDesktop(h_desk)
+            browser_hwnds = []
+            def enum_browser_cb(hwnd, lparam):
+                if user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+                    cls_buf = ctypes.create_unicode_buffer(256)
+                    user32.GetClassNameW(hwnd, cls_buf, 256)
+                    cls_name = cls_buf.value
+                    if cls_name in ("Chrome_WidgetWin_1", "MozillaWindowClass"):
+                        title = ctypes.create_unicode_buffer(512)
+                        user32.GetWindowTextW(hwnd, title, 512)
+                        if title.value and not any(ex in title.value for ex in ["Antigravity", "Visual Studio"]):
+                            browser_hwnds.append(hwnd)
+                return True
+            cb = WNDENUMPROC(enum_browser_cb)
+            user32.EnumWindows(cb, 0)
+            if browser_hwnds:
+                force_foreground_window(browser_hwnds[0])
+                return True
+        except Exception:
+            pass
+
+    # 3. If no active tab or window exists, launch browser
+    try:
+        import webbrowser
+        webbrowser.open(f"http://localhost:{port}")
+        return True
+    except Exception as e:
+        if logger:
+            logger.warning(f"Failed to launch browser: {e}")
+        return False

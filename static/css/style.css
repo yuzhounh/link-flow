@@ -1196,3 +1196,108 @@ input:checked + .slider:before {
     height: 32px;
   }
 }
+
+/* Duplicate Tab Prevention Modal */
+.duplicate-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.duplicate-box {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 32px 28px 26px;
+  width: 90%;
+  max-width: 420px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  animation: popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.duplicate-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.duplicate-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-main);
+  line-height: 1.4;
+}
+
+.duplicate-desc {
+  font-size: 13.5px;
+  color: var(--text-sub);
+  line-height: 1.6;
+}
+
+.duplicate-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.dup-btn {
+  width: 100%;
+  height: 42px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dup-btn-primary {
+  background-color: var(--primary);
+  color: #ffffff;
+}
+
+.dup-btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.dup-btn-secondary {
+  background-color: transparent;
+  color: var(--text-sub);
+  border: 1px solid var(--border-color);
+}
+
+.dup-btn-secondary:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+  color: var(--text-main);
+}
+
+[data-theme="dark"] .dup-btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+

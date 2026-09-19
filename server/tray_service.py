@@ -153,9 +153,14 @@ class LinkFlowTray:
 
     def open_web(self):
         try:
-            webbrowser.open(self.pc_url)
+            from .window_utils import open_or_activate_linkflow
+            open_or_activate_linkflow(self.port)
         except Exception as e:
-            logger.warning(f"Failed to open browser: {e}")
+            logger.warning(f"Failed to activate/open browser: {e}")
+            try:
+                webbrowser.open(self.pc_url)
+            except Exception:
+                pass
 
     def copy_phone_url(self):
         try:

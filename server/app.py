@@ -381,6 +381,28 @@ class CopyFileHandler(BaseHandler):
             self.write({"error": f"复制异常: {str(e)}"})
 
 
+class WakeHandler(BaseHandler):
+    def post(self):
+        local_ips = {"127.0.0.1", "::1", "localhost"}
+        local_clients = [c for c in self.state.ws_clients if c.request.remote_ip in local_ips]
+        has_client = len(local_clients) > 0
+        if has_client:
+            payload = json.dumps({"type": "wake_tab"})
+            for client in local_clients:
+                try:
+                    client.write_message(payload)
+                except Exception:
+                    pass
+        self.write({
+            "status": "ok",
+            "has_client": has_client,
+            "client_count": len(local_clients)
+        })
+
+    def get(self):
+        self.post()
+
+
 class NoCacheStaticFileHandler(tornado.web.StaticFileHandler):
     def set_extra_headers(self, path):
         self.set_header("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -405,6 +427,7 @@ def create_app(data_dir: str, static_dir: str, port: int) -> tornado.web.Applica
         (r"/api/system/clipboard", ClipboardHandler),
         (r"/api/system/open-file", OpenFileHandler),
         (r"/api/system/copy-file", CopyFileHandler),
+        (r"/api/system/wake", WakeHandler),
         # Files and thumbnails static route
         (r"/files/(.*)", tornado.web.StaticFileHandler, {"path": state.files_dir}),
         (r"/thumbs/(.*)", tornado.web.StaticFileHandler, {"path": state.thumbs_dir}),

@@ -166,6 +166,8 @@
       allMessages = [];
       if (currentViewMonth) exitHistoryMode();
       showToast('聊天记录已清空');
+    } else if (data.type === 'wake_tab') {
+      triggerTabWakeNotice();
     }
   }
 
@@ -1028,7 +1030,161 @@
     }, 2200);
   }
 
+  // 15. Single-Instance & Duplicate Tab Coordination
+  const currentTabId = 'tab_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+  let isMasterTab = false;
+  let broadcastChannel = null;
+  let isDuplicateSuppressed = false;
+
+  let titleFlashTimer = null;
+  function triggerTabWakeNotice() {
+    try {
+      window.focus();
+    } catch (e) {}
+
+    const originalTitle = '文件传输助手';
+    let count = 0;
+    if (titleFlashTimer) clearInterval(titleFlashTimer);
+    titleFlashTimer = setInterval(() => {
+      count++;
+      if (count % 2 === 1) {
+        document.title = '🔔【已在此打开】文件传输助手';
+      } else {
+        document.title = originalTitle;
+      }
+      if (count >= 6) {
+        clearInterval(titleFlashTimer);
+        titleFlashTimer = null;
+        document.title = originalTitle;
+      }
+    }, 450);
+
+    showToast('已为您唤醒文件传输助手');
+  }
+
+  function handleDuplicateTabDetected() {
+    if (isDuplicateSuppressed) return;
+    isDuplicateSuppressed = true;
+
+    // Attempt automatic window.close
+    try {
+      window.close();
+    } catch (e) {}
+
+    // Show duplicate prevention modal in case window.close was blocked by browser policy
+    showDuplicateModal();
+  }
+
+  function showDuplicateModal() {
+    let dupMask = document.getElementById('duplicate-modal');
+    if (!dupMask) {
+      dupMask = document.createElement('div');
+      dupMask.id = 'duplicate-modal';
+      dupMask.className = 'duplicate-mask';
+      dupMask.innerHTML = `
+        <div class="duplicate-box">
+          <div class="duplicate-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <div class="duplicate-title">文件传输助手已在运行</div>
+          <div class="duplicate-desc">
+            检测到当前浏览器中已有正在运行的文件传输助手。<br>
+            为避免重复占用内存及多标签堆积，请直接切换回已打开的标签页。
+          </div>
+          <div class="duplicate-actions">
+            <button id="close-duplicate-btn" class="dup-btn dup-btn-primary">关闭当前标签页</button>
+            <button id="stay-duplicate-btn" class="dup-btn dup-btn-secondary">仍在此标签页使用</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(dupMask);
+
+      document.getElementById('close-duplicate-btn').addEventListener('click', () => {
+        window.close();
+        setTimeout(() => {
+          showToast('若浏览器限制关闭，请直接点击顶部标签栏 ✕ 关闭');
+        }, 300);
+      });
+
+      document.getElementById('stay-duplicate-btn').addEventListener('click', () => {
+        dupMask.style.display = 'none';
+        isDuplicateSuppressed = false;
+        isMasterTab = true;
+        if (broadcastChannel) {
+          broadcastChannel.postMessage({ type: 'CLAIM_MASTER', tabId: currentTabId });
+        }
+        showToast('已切换至当前标签页为主界面');
+      });
+    } else {
+      dupMask.style.display = 'flex';
+    }
+  }
+
+  function initSingleInstance() {
+    if (typeof BroadcastChannel === 'undefined') {
+      isMasterTab = true;
+      return;
+    }
+
+    broadcastChannel = new BroadcastChannel('linkflow_single_instance');
+
+    broadcastChannel.onmessage = (event) => {
+      const data = event.data;
+      if (!data) return;
+
+      if (data.type === 'QUERY_INSTANCE') {
+        if (isMasterTab || document.visibilityState === 'visible') {
+          broadcastChannel.postMessage({
+            type: 'INSTANCE_EXISTS',
+            primaryTabId: currentTabId,
+            targetTabId: data.tabId
+          });
+          triggerTabWakeNotice();
+        }
+      } else if (data.type === 'INSTANCE_EXISTS' && data.targetTabId === currentTabId) {
+        handleDuplicateTabDetected();
+      } else if (data.type === 'CLAIM_MASTER') {
+        if (data.tabId !== currentTabId) {
+          isMasterTab = false;
+        }
+      }
+    };
+
+    let hasResponded = false;
+    const checkTimer = setTimeout(() => {
+      if (!hasResponded) {
+        isMasterTab = true;
+        broadcastChannel.postMessage({ type: 'CLAIM_MASTER', tabId: currentTabId });
+      }
+    }, 280);
+
+    const onInitialCheck = (event) => {
+      if (event.data && event.data.type === 'INSTANCE_EXISTS' && event.data.targetTabId === currentTabId) {
+        hasResponded = true;
+        clearTimeout(checkTimer);
+        broadcastChannel.removeEventListener('message', onInitialCheck);
+        handleDuplicateTabDetected();
+      }
+    };
+
+    broadcastChannel.addEventListener('message', onInitialCheck);
+    broadcastChannel.postMessage({ type: 'QUERY_INSTANCE', tabId: currentTabId });
+
+    window.addEventListener('focus', () => {
+      if (!isDuplicateSuppressed) {
+        isMasterTab = true;
+        broadcastChannel.postMessage({ type: 'CLAIM_MASTER', tabId: currentTabId });
+      }
+    });
+  }
+
   // Initialize
+  initSingleInstance();
   loadInitialData();
   connectWebSocket();
 })();
+

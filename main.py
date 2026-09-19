@@ -55,9 +55,13 @@ def main():
     if check_already_running(DEFAULT_PORT):
         print(f"LinkFlow 服务已在后台运行中 (端口 {DEFAULT_PORT})，正在为您唤醒浏览器界面...")
         try:
-            webbrowser.open(f"http://localhost:{DEFAULT_PORT}")
+            from server.window_utils import open_or_activate_linkflow
+            open_or_activate_linkflow(DEFAULT_PORT)
         except Exception:
-            pass
+            try:
+                webbrowser.open(f"http://localhost:{DEFAULT_PORT}")
+            except Exception:
+                pass
         return
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -94,7 +98,8 @@ def main():
     print("=" * 60)
 
     try:
-        webbrowser.open(pc_url)
+        from server.window_utils import open_or_activate_linkflow
+        open_or_activate_linkflow(port)
     except Exception as e:
         logger.warning(f"Failed to auto-launch browser: {e}")
 
