@@ -98,18 +98,11 @@ def force_foreground_window(hwnd: int) -> bool:
         except Exception:
             pass
 
-        # 4. Simulate ALT key press and release to break Windows focus stealing prevention
-        try:
-            user32.keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY, 0)
-            user32.keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0)
-        except Exception:
-            pass
-
-        # 5. Physically lift Z-order above all windows (TOPMOST then NOTOPMOST)
+        # 4. Physically lift Z-order above all windows (TOPMOST then NOTOPMOST)
         user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
         user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
 
-        # 6. Bring to Top and SetForegroundWindow
+        # 5. Bring to Top and SetForegroundWindow
         user32.BringWindowToTop(hwnd)
         user32.SetForegroundWindow(hwnd)
 
@@ -206,8 +199,15 @@ def select_in_open_explorer(folder_path: str, filename: str) -> Optional[int]:
 
                         hwnd = w.HWND
                         force_foreground_window(hwnd)
-                        time.sleep(0.15)
+                        time.sleep(0.1)
                         force_foreground_window(hwnd)
+
+                        # Ensure keyboard and selection focus remains on the file item itself
+                        if found_item:
+                            try:
+                                doc.SelectItem(found_item, 1 | 4 | 8 | 16)
+                            except Exception:
+                                pass
                         return hwnd
                 except Exception:
                     continue
