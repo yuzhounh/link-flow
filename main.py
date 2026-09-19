@@ -136,4 +136,10 @@ def main():
             print("\nLinkFlow 服务已停止。")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        import traceback
+        log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crash.log")
+        with open(log_path, "w", encoding="utf-8") as f:
+            traceback.print_exc(file=f)
