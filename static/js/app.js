@@ -417,7 +417,7 @@
 
   // Set responsive placeholder
   if (messageInput) {
-    messageInput.placeholder = isMobile ? '输入消息...' : '输入文字，支持拖拽文件或直接 Ctrl+V 粘贴截图...';
+    messageInput.placeholder = isMobile ? '输入消息...' : '输入文字，或直接拖入 / 粘贴文件...';
   }
 
   // 6. Sending Messages & Uploads
