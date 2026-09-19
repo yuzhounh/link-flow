@@ -214,7 +214,8 @@ class UploadHandler(BaseHandler):
             return
 
         uploaded_file = self.request.files["file"][0]
-        filename = uploaded_file["filename"]
+        raw_filename = uploaded_file["filename"]
+        filename = os.path.basename(raw_filename) or "unnamed_file"
         body = uploaded_file["body"]
         file_size = len(body)
 
@@ -223,9 +224,18 @@ class UploadHandler(BaseHandler):
         target_dir = os.path.join(self.state.files_dir, month_str)
         os.makedirs(target_dir, exist_ok=True)
 
-        # Unique file name to prevent collision
-        prefix = int(time.time() * 1000)
-        safe_name = f"{prefix}_{filename}"
+        # Retain original filename if no collision; append 13-digit Unix millisecond timestamp if duplicate exists: {stem}-{timestamp}{ext}
+        candidate_path = os.path.join(target_dir, filename)
+        if not os.path.exists(candidate_path):
+            safe_name = filename
+        else:
+            stem, ext = os.path.splitext(filename)
+            ts = int(time.time() * 1000)
+            safe_name = f"{stem}-{ts}{ext}"
+            while os.path.exists(os.path.join(target_dir, safe_name)):
+                ts += 1
+                safe_name = f"{stem}-{ts}{ext}"
+
         full_path = os.path.join(target_dir, safe_name)
         rel_path = f"{month_str}/{safe_name}"
 
@@ -241,7 +251,6 @@ class UploadHandler(BaseHandler):
         msg_type = "file"
         thumb_path = ""
 
-
         msg_id = str(uuid.uuid4())
         record = {
             "id": msg_id,
@@ -249,7 +258,7 @@ class UploadHandler(BaseHandler):
             "sender": sender,
             "msg_type": msg_type,
             "content": note,
-            "file_name": filename,
+            "file_name": safe_name,
             "file_path": rel_path,
             "file_size": file_size,
             "mime_type": mime_type,

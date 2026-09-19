@@ -85,6 +85,40 @@ class TestServerApp(AsyncHTTPTestCase):
         self.assertEqual(len(msg_data["messages"]), 1)
         self.assertEqual(msg_data["messages"][0]["file_name"], filename)
 
+    def test_upload_file_duplicate_naming(self):
+        # Upload a file named README.MD, then upload it again to check collision handling
+        boundary = "----WebKitFormBoundaryDupTest"
+        filename = "README.MD"
+        content_1 = b"# First Readme"
+        content_2 = b"# Second Readme"
+
+        def make_body(content):
+            return (
+                f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="sender"\r\n\r\n'
+                f"pc\r\n"
+                f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+                f"Content-Type: text/markdown\r\n\r\n"
+            ).encode("utf-8") + content + f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+        headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
+
+        # 1. First upload: must keep original name without timestamp
+        res1 = self.fetch("/api/upload", method="POST", headers=headers, body=make_body(content_1))
+        self.assertEqual(res1.code, 200)
+        data1 = json.loads(res1.body)["message"]
+        self.assertEqual(data1["file_name"], "README.MD")
+        self.assertTrue(data1["file_path"].endswith("/README.MD"))
+
+        # 2. Second upload: should append 13-digit timestamp, e.g. README-1789837483029.MD
+        res2 = self.fetch("/api/upload", method="POST", headers=headers, body=make_body(content_2))
+        self.assertEqual(res2.code, 200)
+        data2 = json.loads(res2.body)["message"]
+        import re
+        self.assertTrue(re.match(r"^README-\d{13}\.MD$", data2["file_name"]), f"Expected timestamp suffix, got {data2['file_name']}")
+        self.assertTrue(data2["file_path"].endswith(f"/{data2['file_name']}"))
+
     def test_months_api(self):
         # Months endpoint should return ok and a list
         response = self.fetch("/api/months")
