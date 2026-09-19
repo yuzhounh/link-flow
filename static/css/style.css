@@ -1,12 +1,12 @@
 :root {
-  --primary: #07c160;
-  --primary-hover: #06ad56;
-  --primary-light: #e8f8ee;
+  --primary: #24a1de;
+  --primary-hover: #1e8ec5;
+  --primary-light: #e8f5fb;
   --bg-app: #ededed;
   --bg-header: #f7f7f7;
   --bg-chat: #f3f3f3;
   --bg-input: #ffffff;
-  --bubble-self: #95ec69;
+  --bubble-self: #d7f0fc;
   --bubble-peer: #ffffff;
   --text-main: #191919;
   --text-sub: #7f7f7f;
@@ -23,14 +23,14 @@
 }
 
 [data-theme="dark"] {
-  --primary: #10b981;
-  --primary-hover: #059669;
-  --primary-light: #064e3b;
+  --primary: #38bdf8;
+  --primary-hover: #0ea5e9;
+  --primary-light: #082f49;
   --bg-app: #121212;
   --bg-header: #1f1f1f;
   --bg-chat: #181818;
   --bg-input: #242424;
-  --bubble-self: #056138;
+  --bubble-self: #0c4a6e;
   --bubble-peer: #2a2a2a;
   --text-main: #f0f0f0;
   --text-sub: #a0a0a0;
