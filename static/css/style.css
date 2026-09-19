@@ -937,9 +937,7 @@ input:checked + .slider:before {
     height: 32px;
     font-size: 18px;
   }
-  #clipboard-badge {
-    font-size: 10px;
-  }
+
   .input-row {
     gap: 8px;
   }

@@ -31,7 +31,6 @@
   const statusText = document.getElementById('status-text');
   const dropZone = document.getElementById('drop-zone');
   const toast = document.getElementById('toast');
-  const clipboardBadge = document.getElementById('clipboard-badge');
 
   // Modals
   const qrModal = document.getElementById('qr-modal');
@@ -124,7 +123,6 @@
       port = data.port || location.port;
       autoClipboard = data.auto_clipboard;
       settingAutoClipboard.checked = autoClipboard;
-      updateClipboardBadge();
     } else if (data.type === 'new_message') {
       const msg = data.message;
       allMessages.push(msg);
@@ -161,18 +159,11 @@
         port = infoData.port;
         autoClipboard = infoData.auto_clipboard;
         settingAutoClipboard.checked = autoClipboard;
-        updateClipboardBadge();
         updateStorageStats(infoData.stats);
         setupIpSelector();
       }
     } catch (e) {
       console.error('Failed to load initial data', e);
-    }
-  }
-
-  function updateClipboardBadge() {
-    if (clipboardBadge) {
-      clipboardBadge.style.display = autoClipboard ? 'flex' : 'none';
     }
   }
 
@@ -649,7 +640,6 @@
 
   settingAutoClipboard.addEventListener('change', async (e) => {
     autoClipboard = e.target.checked;
-    updateClipboardBadge();
     try {
       await fetch('/api/system/info', {
         method: 'POST',
