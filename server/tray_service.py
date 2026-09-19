@@ -44,6 +44,32 @@ def set_autostart(enable: bool, start_vbs_path: str) -> bool:
         return False
 
 
+if HAS_PYQT:
+    class ModernTrayMenu(QtWidgets.QMenu):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.autostart_act = None
+            self.is_autostart_checked = False
+
+        def paintEvent(self, event):
+            super().paintEvent(event)
+            if self.autostart_act and self.is_autostart_checked:
+                geo = self.actionGeometry(self.autostart_act)
+                if not geo.isEmpty():
+                    painter = QtGui.QPainter(self)
+                    painter.setRenderHint(QtGui.QPainter.Antialiasing)
+                    painter.setPen(QtGui.QColor("#24A1DE"))
+                    font = self.font()
+                    font.setPointSize(12)
+                    font.setBold(True)
+                    painter.setFont(font)
+                    right_rect = QtCore.QRect(geo.right() - 36, geo.top(), 24, geo.height())
+                    painter.drawText(right_rect, QtCore.Qt.AlignCenter, "✓")
+                    painter.end()
+else:
+    ModernTrayMenu = object
+
+
 class LinkFlowTray:
     def __init__(
         self,
@@ -167,7 +193,7 @@ class LinkFlowTray:
         self.tray.setToolTip(f"LinkFlow (端口: {self.port})")
 
         # Context Menu
-        menu = QtWidgets.QMenu()
+        menu = ModernTrayMenu()
         menu.setWindowFlags(menu.windowFlags() | QtCore.Qt.FramelessWindowHint)
         menu.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
 
@@ -177,15 +203,16 @@ class LinkFlowTray:
                 background-color: #ffffff;
                 border: 1px solid #dce0e5;
                 border-radius: 12px;
-                padding: 8px 8px;
-                font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
-                font-size: 14px;
+                padding: 8px 6px;
+                font-family: "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+                font-size: 15px;
                 color: #1f2328;
+                min-width: 220px;
             }
             QMenu::item {
-                padding: 9px 32px 9px 18px;
-                border-radius: 6px;
-                margin: 1px 0px;
+                padding: 10px 36px 10px 18px;
+                border-radius: 8px;
+                margin: 2px 4px;
             }
             QMenu::item:selected {
                 background-color: #f2f4f7;
@@ -193,8 +220,8 @@ class LinkFlowTray:
             }
             QMenu::separator {
                 height: 1px;
-                background-color: #f0f2f5;
-                margin: 6px 10px;
+                background-color: #eaedf1;
+                margin: 6px 12px;
             }
         """)
 
@@ -215,16 +242,23 @@ class LinkFlowTray:
 
         menu.addSeparator()
 
-        # 4. 开机自启动 (Checkable)
+        # 4. 开机自启动 (Clean right-side checkmark, strictly left-aligned)
         act_autostart = menu.addAction("开机自启动")
-        act_autostart.setCheckable(True)
-        act_autostart.setChecked(is_autostart_enabled())
+        menu.autostart_act = act_autostart
+        menu.is_autostart_checked = is_autostart_enabled()
+
+        def sync_autostart():
+            menu.is_autostart_checked = is_autostart_enabled()
+            menu.update()
+
+        menu.aboutToShow.connect(sync_autostart)
 
         def on_toggle_autostart():
-            enable = act_autostart.isChecked()
-            set_autostart(enable, self.start_vbs_path)
+            menu.is_autostart_checked = not menu.is_autostart_checked
+            set_autostart(menu.is_autostart_checked, self.start_vbs_path)
+            menu.update()
             if self.tray:
-                msg = "已开启开机自启动" if enable else "已关闭开机自启动"
+                msg = "已开启开机自启动" if menu.is_autostart_checked else "已关闭开机自启动"
                 self.tray.showMessage("LinkFlow", msg, QtWidgets.QSystemTrayIcon.Information, 2000)
 
         act_autostart.triggered.connect(on_toggle_autostart)
