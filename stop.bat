@@ -8,4 +8,4 @@ if exist "C:\ProgramData\Anaconda3\python.exe" (
 )
 
 "%PY_CMD%" server/stop.py
-timeout /t 3 > nul
+timeout /t 2 > nul
