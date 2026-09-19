@@ -59,11 +59,11 @@ if HAS_PYQT:
                     painter = QtGui.QPainter(self)
                     painter.setRenderHint(QtGui.QPainter.Antialiasing)
                     painter.setPen(QtGui.QColor("#24A1DE"))
-                    font = self.font()
-                    font.setPointSize(12)
+                    font = QtGui.QFont("Segoe UI Variable Text", -1)
+                    font.setPixelSize(18)
                     font.setBold(True)
                     painter.setFont(font)
-                    right_rect = QtCore.QRect(geo.right() - 36, geo.top(), 24, geo.height())
+                    right_rect = QtCore.QRect(geo.right() - 42, geo.top(), 28, geo.height())
                     painter.drawText(right_rect, QtCore.Qt.AlignCenter, "✓")
                     painter.end()
 else:
@@ -119,47 +119,10 @@ class LinkFlowTray:
 
     def open_files_folder(self):
         try:
+            from .window_utils import open_folder_in_explorer
             month_str = time.strftime("%Y-%m")
             current_month_dir = os.path.join(self.files_dir, month_str)
-            if not os.path.exists(current_month_dir):
-                os.makedirs(current_month_dir, exist_ok=True)
-
-            try:
-                ctypes.windll.user32.AllowSetForegroundWindow(-1)
-            except Exception:
-                pass
-
-            os.startfile(current_month_dir)
-
-            # Bring folder window to foreground
-            user32 = ctypes.windll.user32
-            folder_name = os.path.basename(current_month_dir)
-            for _ in range(8):
-                time.sleep(0.1)
-                found = []
-                def enum_cb(h, _):
-                    if user32.IsWindowVisible(h):
-                        cls = ctypes.create_unicode_buffer(64)
-                        user32.GetClassNameW(h, cls, 64)
-                        if cls.value == "CabinetWClass":
-                            txt = ctypes.create_unicode_buffer(512)
-                            user32.GetWindowTextW(h, txt, 512)
-                            if folder_name.lower() in txt.value.lower():
-                                found.append(h)
-                    return True
-
-                cb_func = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)(enum_cb)
-                user32.EnumWindows(cb_func, 0)
-                if found:
-                    hwnd = found[0]
-                    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-                    user32.BringWindowToTop(hwnd)
-                    user32.SetForegroundWindow(hwnd)
-                    try:
-                        user32.SwitchToThisWindow(hwnd, True)
-                    except Exception:
-                        pass
-                    break
+            open_folder_in_explorer(current_month_dir)
         except Exception as e:
             logger.warning(f"Failed to open folder: {e}")
 
@@ -197,7 +160,7 @@ class LinkFlowTray:
         menu.setWindowFlags(menu.windowFlags() | QtCore.Qt.FramelessWindowHint)
         menu.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
 
-        # Style matching Windows 11 modern context menus (Screenshots 4 & 5)
+        # Style matching Windows 11 modern context menus (Screenshots 4 & 5, enlarged DSH style)
         menu.setStyleSheet("""
             QMenu {
                 background-color: #ffffff;
@@ -205,12 +168,12 @@ class LinkFlowTray:
                 border-radius: 12px;
                 padding: 8px 6px;
                 font-family: "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
-                font-size: 15px;
+                font-size: 18px;
                 color: #1f2328;
-                min-width: 220px;
+                min-width: 240px;
             }
             QMenu::item {
-                padding: 10px 36px 10px 18px;
+                padding: 11px 42px 11px 20px;
                 border-radius: 8px;
                 margin: 2px 4px;
             }
