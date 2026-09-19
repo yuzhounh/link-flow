@@ -590,7 +590,7 @@ header {
 footer {
   background-color: var(--bg-header);
   border-top: 1px solid var(--border-color);
-  padding: 6px 16px 10px;
+  padding: 10px 16px 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -598,7 +598,7 @@ footer {
 }
 
 .input-toolbar {
-  display: flex;
+  display: none; /* Hide on PC; drag-and-drop & clipboard paste are primary */
   align-items: center;
   justify-content: space-between;
 }
@@ -993,7 +993,7 @@ input:checked + .slider:before {
 }
 
 /* Mobile responsive adjustments */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   #app-container {
     max-width: 100%;
     box-shadow: none;
@@ -1053,6 +1053,9 @@ input:checked + .slider:before {
   footer {
     padding: 5px 10px calc(6px + env(safe-area-inset-bottom, 0px));
     gap: 5px;
+  }
+  .input-toolbar {
+    display: flex;
   }
   .tool-btn {
     width: 32px;
