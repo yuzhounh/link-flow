@@ -45,11 +45,65 @@ def set_autostart(enable: bool, start_vbs_path: str) -> bool:
 
 
 if HAS_PYQT:
+    class MARGINS(ctypes.Structure):
+        _fields_ = [
+            ("cxLeftWidth", ctypes.c_int),
+            ("cxRightWidth", ctypes.c_int),
+            ("cyTopHeight", ctypes.c_int),
+            ("cyBottomHeight", ctypes.c_int),
+        ]
+
     class ModernTrayMenu(QtWidgets.QMenu):
         def __init__(self, parent=None):
             super().__init__(parent)
             self.autostart_act = None
             self.is_autostart_checked = False
+
+        def showEvent(self, event):
+            super().showEvent(event)
+            try:
+                hwnd = int(self.winId())
+                user32 = ctypes.windll.user32
+                dwmapi = ctypes.windll.dwmapi
+
+                # 1. Enable WS_THICKFRAME to activate modern Windows DWM system shadow
+                GWL_STYLE = -16
+                WS_THICKFRAME = 0x00040000
+                style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+                user32.SetWindowLongW(hwnd, GWL_STYLE, style | WS_THICKFRAME)
+
+                # 2. Extend frame into client area for DWM shadow
+                margins = MARGINS(1, 1, 1, 1)
+                dwmapi.DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(margins))
+
+                # 3. Windows 11 DWM native rounded corners (DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2)
+                val = ctypes.c_int(2)
+                dwmapi.DwmSetWindowAttribute(hwnd, 33, ctypes.byref(val), ctypes.sizeof(val))
+
+                # 4. Windows 11 DWM border color (#dce0e5 -> 0x00E5E0DC)
+                color = ctypes.c_int(0x00E5E0DC)
+                dwmapi.DwmSetWindowAttribute(hwnd, 34, ctypes.byref(color), ctypes.sizeof(color))
+
+                # 5. CS_DROPSHADOW fallback
+                try:
+                    CS_DROPSHADOW = 0x00020000
+                    GCL_STYLE = -26
+                    cstyle = user32.GetClassLongW(hwnd, GCL_STYLE)
+                    user32.SetClassLongW(hwnd, GCL_STYLE, cstyle | CS_DROPSHADOW)
+                except Exception:
+                    pass
+
+                user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0020 | 0x0040)
+            except Exception:
+                pass
+
+        def nativeEvent(self, eventType, message):
+            if eventType in (b"windows_generic_MSG", "windows_generic_MSG"):
+                msg = wintypes.MSG.from_address(message.__int__())
+                if msg.message == 0x0083:  # WM_NCCALCSIZE
+                    if msg.wParam:
+                        return True, 0
+            return super().nativeEvent(eventType, message)
 
         def paintEvent(self, event):
             super().paintEvent(event)
@@ -60,10 +114,10 @@ if HAS_PYQT:
                     painter.setRenderHint(QtGui.QPainter.Antialiasing)
                     painter.setPen(QtGui.QColor("#24A1DE"))
                     font = QtGui.QFont("Segoe UI Variable Text", -1)
-                    font.setPixelSize(18)
+                    font.setPixelSize(20)
                     font.setBold(True)
                     painter.setFont(font)
-                    right_rect = QtCore.QRect(geo.right() - 42, geo.top(), 28, geo.height())
+                    right_rect = QtCore.QRect(geo.right() - 46, geo.top(), 28, geo.height())
                     painter.drawText(right_rect, QtCore.Qt.AlignCenter, "✓")
                     painter.end()
 else:
@@ -158,23 +212,22 @@ class LinkFlowTray:
         # Context Menu
         menu = ModernTrayMenu()
         menu.setWindowFlags(menu.windowFlags() | QtCore.Qt.FramelessWindowHint)
-        menu.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
 
-        # Style matching Windows 11 modern context menus (Screenshots 4 & 5, enlarged DSH style)
+        # Style matching Windows 11 modern context menus with font size 20 and system drop shadow
         menu.setStyleSheet("""
             QMenu {
                 background-color: #ffffff;
                 border: 1px solid #dce0e5;
-                border-radius: 12px;
+                border-radius: 8px;
                 padding: 8px 6px;
                 font-family: "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
-                font-size: 18px;
+                font-size: 20px;
                 color: #1f2328;
-                min-width: 240px;
+                min-width: 260px;
             }
             QMenu::item {
-                padding: 11px 42px 11px 20px;
-                border-radius: 8px;
+                padding: 12px 48px 12px 22px;
+                border-radius: 6px;
                 margin: 2px 4px;
             }
             QMenu::item:selected {
