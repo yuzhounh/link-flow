@@ -9,6 +9,7 @@ if sys.platform == "win32":
     except Exception:
         pass
 
+import urllib.request
 import webbrowser
 import logging
 import tornado.ioloop
@@ -24,7 +25,31 @@ logging.basicConfig(
 )
 logger = logging.getLogger("LinkFlow")
 
+DEFAULT_PORT = 5837
+
+def check_already_running(port: int = DEFAULT_PORT) -> bool:
+    """Check if another LinkFlow instance is already running on port."""
+    try:
+        url = f"http://127.0.0.1:{port}/api/system/info"
+        req = urllib.request.Request(url, headers={"User-Agent": "LinkFlow-Check"})
+        with urllib.request.urlopen(req, timeout=0.8) as resp:
+            data = resp.read()
+            if b"status" in data and b"auto_clipboard" in data:
+                return True
+    except Exception:
+        pass
+    return False
+
 def main():
+    # 1. Single-instance duplicate prevention
+    if check_already_running(DEFAULT_PORT):
+        print(f"LinkFlow 服务已在后台运行中 (端口 {DEFAULT_PORT})，正在为您唤醒浏览器界面...")
+        try:
+            webbrowser.open(f"http://localhost:{DEFAULT_PORT}")
+        except Exception:
+            pass
+        return
+
     base_dir = os.path.dirname(os.path.abspath(__file__))
     data_dir = os.path.join(base_dir, "data")
     static_dir = os.path.join(base_dir, "static")
@@ -32,7 +57,7 @@ def main():
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(static_dir, exist_ok=True)
 
-    port = find_available_port(8000)
+    port = find_available_port(DEFAULT_PORT)
     lan_ip = get_lan_ip()
     all_ips = get_all_lan_ips()
 
@@ -44,7 +69,7 @@ def main():
     phone_url = f"http://{lan_ip}:{port}"
 
     print("=" * 60)
-    print("  LinkFlow - 私人文件传输助手 (局域网双向极速传输)")
+    print(f"  LinkFlow - 私人文件传输助手 (端口: {port})")
     print("=" * 60)
     print(f" [PC 电脑本地入口] : {pc_url}")
     print(f" [手机扫码访问入口] : {phone_url}")

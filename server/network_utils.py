@@ -81,7 +81,7 @@ def get_all_lan_ips() -> List[str]:
     ips.sort(key=sort_key)
     return ips
 
-def find_available_port(start_port: int = 8000, max_attempts: int = 50) -> int:
+def find_available_port(start_port: int = 5837, max_attempts: int = 50) -> int:
     """Find an available TCP port starting from start_port."""
     for port in range(start_port, start_port + max_attempts):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

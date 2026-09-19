@@ -10,8 +10,9 @@ def stop_linkflow():
     try:
         output = subprocess.check_output("netstat -ano", shell=True, text=True)
         pids = set()
+        target_ports = [":5837 ", ":8000 ", ":8001 ", ":8002 "]
         for line in output.splitlines():
-            if ":8000 " in line or ":8001 " in line:
+            if any(p in line for p in target_ports):
                 parts = line.strip().split()
                 if len(parts) >= 5 and parts[3] == "LISTENING":
                     pids.add(parts[-1])

@@ -31,8 +31,8 @@ class TestLinkFlow(unittest.TestCase):
         ip = get_lan_ip()
         self.assertTrue(isinstance(ip, str))
         self.assertGreater(len(ip), 0)
-        port = find_available_port(8000)
-        self.assertGreaterEqual(port, 8000)
+        port = find_available_port(5837)
+        self.assertGreaterEqual(port, 5837)
 
     def test_clipboard(self):
         test_str = "LinkFlow 测试剪切板同步 12345"
