@@ -25,6 +25,7 @@
 
   // DOM elements
   const chatHistory = document.getElementById('chat-history');
+  const chatInputBox = document.getElementById('chat-input-box');
   const messageInput = document.getElementById('message-input');
   const sendBtn = document.getElementById('send-btn');
   const statusDot = document.getElementById('status-dot');
@@ -435,7 +436,7 @@
         timestamp: Date.now()
       }));
       messageInput.value = '';
-      messageInput.style.height = '78px';
+      messageInput.style.height = '56px';
       messageInput.style.overflowY = 'hidden';
     } else {
       showToast('连接未就绪，正在重连...');
@@ -451,10 +452,18 @@
     }
   });
 
+  if (chatInputBox) {
+    chatInputBox.addEventListener('click', (e) => {
+      if (!e.target.closest('button, label, input')) {
+        messageInput.focus();
+      }
+    });
+  }
+
   // Auto-grow textarea smoothly
   messageInput.addEventListener('input', () => {
     messageInput.style.height = 'auto';
-    const baseH = 78;
+    const baseH = 56;
     const maxH = 160;
     const scrollH = messageInput.scrollHeight;
     const targetH = Math.min(Math.max(scrollH, baseH), maxH);
