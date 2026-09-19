@@ -111,8 +111,8 @@ header {
 }
 
 .app-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: normal;
   color: var(--text-main);
   display: flex;
   align-items: center;
@@ -590,10 +590,10 @@ header {
 footer {
   background-color: var(--bg-header);
   border-top: 1px solid var(--border-color);
-  padding: 8px 16px 12px;
+  padding: 6px 16px 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
@@ -638,15 +638,15 @@ footer {
 
 #message-input {
   flex: 1;
-  min-height: 40px;
+  min-height: 36px;
   max-height: 120px;
-  height: 40px;
-  padding: 9px 14px;
+  height: 36px;
+  padding: 7px 14px;
   border: 1px solid var(--border-color);
-  border-radius: 20px;
+  border-radius: 18px;
   background-color: var(--bg-input);
   color: var(--text-main);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 20px;
   resize: none;
   outline: none;
@@ -661,14 +661,14 @@ footer {
 }
 
 .send-btn {
-  height: 40px;
-  padding: 0 16px;
+  height: 36px;
+  padding: 0 14px;
   background-color: var(--primary);
   color: #ffffff;
   border: none;
-  border-radius: 20px;
+  border-radius: 18px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1001,7 +1001,7 @@ input:checked + .slider:before {
     border-radius: 8px;
   }
   .app-title {
-    font-size: 15px;
+    font-size: 17px;
   }
   .app-title #device-tag {
     font-size: 10px;
@@ -1038,8 +1038,8 @@ input:checked + .slider:before {
   }
   /* Bottom input bar on mobile */
   footer {
-    padding: 6px 10px calc(8px + env(safe-area-inset-bottom, 0px));
-    gap: 6px;
+    padding: 5px 10px calc(6px + env(safe-area-inset-bottom, 0px));
+    gap: 5px;
   }
   .tool-btn {
     width: 32px;
@@ -1052,14 +1052,15 @@ input:checked + .slider:before {
   }
   #message-input {
     font-size: 14px;
-    padding: 8px 12px;
-    height: 38px;
-    min-height: 38px;
+    padding: 6px 12px;
+    height: 34px;
+    min-height: 34px;
+    border-radius: 17px;
   }
   .send-btn {
-    height: 38px;
-    padding: 0 14px;
+    height: 34px;
+    padding: 0 12px;
     font-size: 13px;
-    border-radius: 19px;
+    border-radius: 17px;
   }
 }

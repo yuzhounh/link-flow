@@ -416,7 +416,7 @@
         timestamp: Date.now()
       }));
       messageInput.value = '';
-      messageInput.style.height = isMobile ? '38px' : '40px';
+      messageInput.style.height = isMobile ? '34px' : '36px';
       messageInput.style.overflowY = 'hidden';
     } else {
       showToast('连接未就绪，正在重连...');
@@ -435,7 +435,7 @@
   // Auto-grow textarea smoothly
   messageInput.addEventListener('input', () => {
     messageInput.style.height = 'auto';
-    const baseH = isMobile ? 38 : 40;
+    const baseH = isMobile ? 34 : 36;
     const maxH = 120;
     const scrollH = messageInput.scrollHeight;
     const targetH = Math.min(Math.max(scrollH, baseH), maxH);

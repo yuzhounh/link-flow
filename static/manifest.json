@@ -1,6 +1,6 @@
 {
-  "name": "LinkFlow",
-  "short_name": "LinkFlow",
+  "name": "文件传输助手",
+  "short_name": "文件传输助手",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ededed",

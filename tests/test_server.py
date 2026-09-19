@@ -44,7 +44,7 @@ class TestServerApp(AsyncHTTPTestCase):
     def test_static_files(self):
         resp = self.fetch("/")
         self.assertEqual(resp.code, 200)
-        self.assertIn("LinkFlow", resp.body.decode("utf-8"))
+        self.assertIn("文件传输助手", resp.body.decode("utf-8"))
 
         manifest = self.fetch("/manifest.json")
         self.assertEqual(manifest.code, 200)
