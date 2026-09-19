@@ -8,6 +8,11 @@
   if (deviceTag) {
     deviceTag.textContent = isMobile ? '📱 手机端' : '💻 电脑端';
   }
+  if (isMobile) {
+    document.body.classList.add('is-mobile');
+  } else {
+    document.body.classList.add('is-desktop');
+  }
 
   // 2. State variables
   let ws = null;
@@ -375,6 +380,11 @@
     chatHistory.scrollTop = chatHistory.scrollHeight;
   }
 
+  // Set responsive placeholder
+  if (messageInput) {
+    messageInput.placeholder = isMobile ? '输入消息...' : '输入文字，支持拖拽文件或直接 Ctrl+V 粘贴截图...';
+  }
+
   // 6. Sending Messages & Uploads
   function sendTextMessage() {
     const text = messageInput.value.trim();
@@ -388,7 +398,8 @@
         timestamp: Date.now()
       }));
       messageInput.value = '';
-      messageInput.style.height = 'auto';
+      messageInput.style.height = isMobile ? '38px' : '40px';
+      messageInput.style.overflowY = 'hidden';
     } else {
       showToast('连接未就绪，正在重连...');
     }
@@ -403,10 +414,15 @@
     }
   });
 
-  // Auto-grow textarea
+  // Auto-grow textarea smoothly
   messageInput.addEventListener('input', () => {
     messageInput.style.height = 'auto';
-    messageInput.style.height = Math.min(messageInput.scrollHeight, 140) + 'px';
+    const baseH = isMobile ? 38 : 40;
+    const maxH = 120;
+    const scrollH = messageInput.scrollHeight;
+    const targetH = Math.min(Math.max(scrollH, baseH), maxH);
+    messageInput.style.height = targetH + 'px';
+    messageInput.style.overflowY = scrollH > maxH ? 'auto' : 'hidden';
   });
 
   async function uploadFiles(files) {

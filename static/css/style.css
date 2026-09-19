@@ -107,6 +107,7 @@ header {
 .header-title-box {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .app-title {
@@ -116,6 +117,12 @@ header {
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+}
+
+.app-title #device-tag {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .status-badge {
@@ -124,6 +131,7 @@ header {
   font-size: 11px;
   color: var(--text-sub);
   gap: 4px;
+  white-space: nowrap;
 }
 
 .status-dot {
@@ -583,18 +591,21 @@ footer {
 #message-input {
   flex: 1;
   min-height: 40px;
-  max-height: 140px;
-  padding: 10px 14px;
+  max-height: 120px;
+  height: 40px;
+  padding: 9px 14px;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: 20px;
   background-color: var(--bg-input);
   color: var(--text-main);
   font-size: 15px;
-  line-height: 1.4;
+  line-height: 20px;
   resize: none;
   outline: none;
   transition: border-color 0.2s;
   font-family: inherit;
+  overflow-y: hidden;
+  box-sizing: border-box;
 }
 
 #message-input:focus {
@@ -603,18 +614,18 @@ footer {
 
 .send-btn {
   height: 40px;
-  padding: 0 18px;
+  padding: 0 16px;
   background-color: var(--primary);
   color: #ffffff;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 20px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   transition: all 0.2s;
   flex-shrink: 0;
 }
@@ -842,19 +853,98 @@ input:checked + .slider:before {
     box-shadow: none;
   }
   header {
-    height: 52px;
+    height: 54px;
     padding: 0 12px;
+  }
+  .header-left {
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+  .app-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 16px;
+    border-radius: 8px;
   }
   .app-title {
     font-size: 15px;
   }
-  .message-row {
-    max-width: 92%;
+  .app-title #device-tag {
+    font-size: 10px;
+    padding: 1px 4px;
   }
+  .status-badge {
+    font-size: 10px;
+  }
+  /* On mobile, collapse "扫码连接" button to compact icon */
+  .btn-qr {
+    padding: 0;
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: none;
+    color: var(--text-sub);
+    justify-content: center;
+  }
+  .btn-qr span {
+    display: none;
+  }
+  .btn-qr svg {
+    width: 18px;
+    height: 18px;
+  }
+  .header-actions {
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+  #chat-history {
+    padding: 12px 10px 8px;
+    gap: 12px;
+  }
+  .message-row {
+    max-width: 88%;
+  }
+  .sender-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 15px;
+    border-radius: 8px;
+  }
+  .bubble {
+    font-size: 15px;
+    padding: 8px 12px;
+  }
+  /* Bottom input bar on mobile */
   footer {
-    padding: 6px 12px 10px;
+    padding: 6px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    gap: 6px;
+  }
+  .tool-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+  }
+  #clipboard-badge {
+    font-size: 10px;
+  }
+  .input-row {
+    gap: 8px;
+  }
+  #message-input {
+    font-size: 14px;
+    padding: 8px 12px;
+    height: 38px;
+    min-height: 38px;
   }
   .send-btn {
-    padding: 0 12px;
+    height: 38px;
+    padding: 0 14px;
+    font-size: 13px;
+    border-radius: 19px;
   }
 }
