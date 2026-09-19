@@ -5,6 +5,7 @@ import threading
 import subprocess
 import ctypes
 from ctypes import wintypes
+from typing import Optional
 
 logger = None
 try:
@@ -145,6 +146,120 @@ def force_foreground_window(hwnd: int) -> bool:
         return False
 
 
+def select_in_open_explorer(folder_path: str, filename: str) -> Optional[int]:
+    """If an Explorer window is already open to folder_path, select filename within it and bring it to the front.
+    
+    Returns the window HWND if successfully selected in an existing window, or None otherwise.
+    """
+    if sys.platform != "win32":
+        return None
+
+    try:
+        import win32com.client
+        import urllib.parse
+        import pythoncom
+
+        pythoncom.CoInitialize()
+        try:
+            norm_target = os.path.normpath(folder_path).lower().rstrip("\\/")
+            shell = win32com.client.Dispatch("Shell.Application")
+            for i in range(shell.Windows().Count):
+                w = shell.Windows().Item(i)
+                try:
+                    url = getattr(w, "LocationURL", "") or ""
+                    if not url:
+                        continue
+                    parsed = urllib.parse.unquote(
+                        url.replace("file:///", "").replace("file://", "")
+                    ).replace("/", "\\").lower().rstrip("\\/")
+
+                    if parsed == norm_target:
+                        doc = w.Document
+                        folder = doc.Folder
+                        items = folder.Items()
+                        found_item = None
+                        for j in range(items.Count):
+                            it = items.Item(j)
+                            if it.Name.lower() == filename.lower():
+                                found_item = it
+                                break
+
+                        # If not found immediately, refresh the view once (in case file was newly added)
+                        if not found_item:
+                            try:
+                                doc.Refresh()
+                                items = folder.Items()
+                                for j in range(items.Count):
+                                    it = items.Item(j)
+                                    if it.Name.lower() == filename.lower():
+                                        found_item = it
+                                        break
+                            except Exception:
+                                pass
+
+                        if found_item:
+                            try:
+                                # 1: SVSI_SELECT, 4: SVSI_DESELECTOTHERS, 8: SVSI_ENSUREVISIBLE, 16: SVSI_FOCUSED
+                                doc.SelectItem(found_item, 1 | 4 | 8 | 16)
+                            except Exception:
+                                doc.SelectItem(found_item, 1)
+
+                        hwnd = w.HWND
+                        force_foreground_window(hwnd)
+                        time.sleep(0.15)
+                        force_foreground_window(hwnd)
+                        return hwnd
+                except Exception:
+                    continue
+        finally:
+            pythoncom.CoUninitialize()
+    except Exception as e:
+        if logger:
+            logger.warning(f"Error in select_in_open_explorer: {e}")
+
+    return None
+
+
+def activate_open_explorer_folder(folder_path: str) -> Optional[int]:
+    """If an Explorer window is already open to folder_path, bring it to the foreground without opening a new one."""
+    if sys.platform != "win32":
+        return None
+
+    try:
+        import win32com.client
+        import urllib.parse
+        import pythoncom
+
+        pythoncom.CoInitialize()
+        try:
+            norm_target = os.path.normpath(folder_path).lower().rstrip("\\/")
+            shell = win32com.client.Dispatch("Shell.Application")
+            for i in range(shell.Windows().Count):
+                w = shell.Windows().Item(i)
+                try:
+                    url = getattr(w, "LocationURL", "") or ""
+                    if not url:
+                        continue
+                    parsed = urllib.parse.unquote(
+                        url.replace("file:///", "").replace("file://", "")
+                    ).replace("/", "\\").lower().rstrip("\\/")
+                    if parsed == norm_target:
+                        hwnd = w.HWND
+                        force_foreground_window(hwnd)
+                        time.sleep(0.15)
+                        force_foreground_window(hwnd)
+                        return hwnd
+                except Exception:
+                    continue
+        finally:
+            pythoncom.CoUninitialize()
+    except Exception as e:
+        if logger:
+            logger.warning(f"Error in activate_open_explorer_folder: {e}")
+
+    return None
+
+
 def find_explorer_hwnd(folder_path: str, before_hwnds: set = None) -> int:
     """Find the HWND of the Explorer window displaying the folder."""
     if sys.platform != "win32":
@@ -157,16 +272,22 @@ def find_explorer_hwnd(folder_path: str, before_hwnds: set = None) -> int:
     try:
         import win32com.client
         import urllib.parse
-        shell = win32com.client.Dispatch("Shell.Application")
-        for i in range(shell.Windows().Count):
-            w = shell.Windows().Item(i)
-            loc_url = getattr(w, "LocationURL", "") or ""
-            if loc_url:
-                parsed = urllib.parse.unquote(
-                    loc_url.replace("file:///", "").replace("file://", "")
-                ).replace("/", "\\").lower().rstrip("\\/")
-                if parsed == norm_folder or norm_folder.startswith(parsed) or parsed.startswith(norm_folder):
-                    return w.HWND
+        import pythoncom
+
+        pythoncom.CoInitialize()
+        try:
+            shell = win32com.client.Dispatch("Shell.Application")
+            for i in range(shell.Windows().Count):
+                w = shell.Windows().Item(i)
+                loc_url = getattr(w, "LocationURL", "") or ""
+                if loc_url:
+                    parsed = urllib.parse.unquote(
+                        loc_url.replace("file:///", "").replace("file://", "")
+                    ).replace("/", "\\").lower().rstrip("\\/")
+                    if parsed == norm_folder or norm_folder.startswith(parsed) or parsed.startswith(norm_folder):
+                        return w.HWND
+        finally:
+            pythoncom.CoUninitialize()
     except Exception:
         pass
 
@@ -193,7 +314,11 @@ def find_explorer_hwnd(folder_path: str, before_hwnds: set = None) -> int:
 
 
 def reveal_in_explorer(file_path: str):
-    """Open Windows Explorer, select the file, and bring the window to the foreground."""
+    """Open Windows Explorer, select the file, and bring the window to the foreground.
+    
+    If the folder is already open in an existing Explorer window, switches selection inside
+    that window and brings it to the front, instead of creating duplicate windows.
+    """
     if sys.platform != "win32":
         return
 
@@ -201,26 +326,48 @@ def reveal_in_explorer(file_path: str):
     if not os.path.exists(full_path):
         return
 
-    folder_path = full_path if os.path.isdir(full_path) else os.path.dirname(full_path)
-
     def _worker():
         try:
             user32.AllowSetForegroundWindow(-1)
         except Exception:
             pass
 
-        before_hwnds = set(get_visible_cabinet_hwnds())
-
-        # Launch Explorer to select the file or open the directory
+        # Case 1: Target path is a directory
         if os.path.isdir(full_path):
+            existing_hwnd = activate_open_explorer_folder(full_path)
+            if existing_hwnd:
+                return
+            before_hwnds = set(get_visible_cabinet_hwnds())
             try:
                 os.startfile(full_path)
             except Exception:
                 subprocess.Popen(f'explorer.exe "{full_path}"')
-        else:
-            subprocess.Popen(f'explorer.exe /select,"{full_path}"')
+            target_hwnd = 0
+            for _ in range(20):
+                time.sleep(0.1)
+                target_hwnd = find_explorer_hwnd(full_path, before_hwnds)
+                if target_hwnd:
+                    break
+            if target_hwnd:
+                force_foreground_window(target_hwnd)
+                time.sleep(0.25)
+                force_foreground_window(target_hwnd)
+            return
 
-        # Poll for the window to appear and bring it to the foreground
+        # Case 2: Target path is a file
+        folder_path = os.path.dirname(full_path)
+        filename = os.path.basename(full_path)
+
+        # First, check if the folder is ALREADY open in an existing Explorer window!
+        existing_hwnd = select_in_open_explorer(folder_path, filename)
+        if existing_hwnd:
+            return
+
+        # Not open yet: open Explorer and select the file
+        before_hwnds = set(get_visible_cabinet_hwnds())
+        subprocess.Popen(f'explorer.exe /select,"{full_path}"')
+
+        # Poll for the newly opened window and bring it to the foreground
         target_hwnd = 0
         for _ in range(20):
             time.sleep(0.1)
@@ -230,7 +377,6 @@ def reveal_in_explorer(file_path: str):
 
         if target_hwnd:
             force_foreground_window(target_hwnd)
-            # Re-assert foreground after a short delay to ensure it stays on top after Explorer animation
             time.sleep(0.25)
             force_foreground_window(target_hwnd)
 
@@ -238,7 +384,10 @@ def reveal_in_explorer(file_path: str):
 
 
 def open_folder_in_explorer(folder_path: str):
-    """Open a folder in Windows Explorer and bring the window to the foreground."""
+    """Open a folder in Windows Explorer and bring the window to the foreground.
+    
+    If the folder is already open, brings that existing window to the front.
+    """
     if sys.platform != "win32":
         return
 
@@ -252,8 +401,12 @@ def open_folder_in_explorer(folder_path: str):
         except Exception:
             pass
 
-        before_hwnds = set(get_visible_cabinet_hwnds())
+        # Check if already open
+        existing_hwnd = activate_open_explorer_folder(full_path)
+        if existing_hwnd:
+            return
 
+        before_hwnds = set(get_visible_cabinet_hwnds())
         try:
             os.startfile(full_path)
         except Exception:

@@ -12,6 +12,8 @@ from server.window_utils import (
     find_explorer_hwnd,
     reveal_in_explorer,
     open_folder_in_explorer,
+    select_in_open_explorer,
+    activate_open_explorer_folder,
 )
 
 class TestWindowUtils(unittest.TestCase):
@@ -22,6 +24,8 @@ class TestWindowUtils(unittest.TestCase):
         self.assertTrue(callable(find_explorer_hwnd))
         self.assertTrue(callable(reveal_in_explorer))
         self.assertTrue(callable(open_folder_in_explorer))
+        self.assertTrue(callable(select_in_open_explorer))
+        self.assertTrue(callable(activate_open_explorer_folder))
 
     def test_invalid_hwnd_handling(self):
         self.assertFalse(force_foreground_window(0))
@@ -30,5 +34,13 @@ class TestWindowUtils(unittest.TestCase):
 
     def test_find_explorer_hwnd_nonexistent(self):
         hwnd = find_explorer_hwnd(r"C:\non_existent_folder_path_12345")
-        # Should return an integer HWND (or 0) without raising exception
         self.assertIsInstance(hwnd, int)
+
+    def test_select_in_nonexistent_folder(self):
+        hwnd = select_in_open_explorer(r"C:\non_existent_folder_xyz", "none.txt")
+        self.assertIsNone(hwnd)
+
+    def test_activate_nonexistent_folder(self):
+        hwnd = activate_open_explorer_folder(r"C:\non_existent_folder_xyz")
+        self.assertIsNone(hwnd)
+
