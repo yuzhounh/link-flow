@@ -143,7 +143,7 @@ header {
 
 .status-dot.online {
   background-color: var(--primary);
-  box-shadow: 0 0 8px rgba(7, 193, 96, 0.6);
+  box-shadow: 0 0 8px rgba(36, 161, 222, 0.6);
 }
 
 .header-actions {
@@ -179,16 +179,16 @@ header {
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  background: linear-gradient(135deg, rgba(7, 193, 96, 0.12), rgba(7, 193, 96, 0.05));
-  border-bottom: 1px solid rgba(7, 193, 96, 0.25);
+  background: linear-gradient(135deg, rgba(36, 161, 222, 0.12), rgba(36, 161, 222, 0.05));
+  border-bottom: 1px solid rgba(36, 161, 222, 0.25);
   font-size: 13px;
   color: var(--text-main);
   z-index: 9;
 }
 
 [data-theme="dark"] #history-banner {
-  background: linear-gradient(135deg, rgba(7, 193, 96, 0.2), rgba(7, 193, 96, 0.08));
-  border-bottom: 1px solid rgba(7, 193, 96, 0.35);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(56, 189, 248, 0.08));
+  border-bottom: 1px solid rgba(56, 189, 248, 0.35);
 }
 
 .history-banner-left {
@@ -220,7 +220,7 @@ header {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  box-shadow: 0 2px 6px rgba(7, 193, 96, 0.3);
+  box-shadow: 0 2px 6px rgba(36, 161, 222, 0.3);
   flex-shrink: 0;
 }
 
@@ -742,28 +742,67 @@ footer {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(7, 193, 96, 0.92);
-  color: #ffffff;
+  background-color: rgba(232, 245, 251, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 100;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  padding: 24px;
   pointer-events: none;
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] #drop-zone {
+  background-color: rgba(8, 35, 58, 0.88);
 }
 
 #drop-zone.active {
   display: flex;
 }
 
+.drop-zone-card {
+  background: rgba(255, 255, 255, 0.85);
+  border: 2px dashed var(--primary);
+  border-radius: var(--radius-lg);
+  padding: 36px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  box-shadow: 0 10px 30px rgba(36, 161, 222, 0.18);
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+}
+
+[data-theme="dark"] .drop-zone-card {
+  background: rgba(18, 30, 49, 0.85);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
 .drop-icon {
-  font-size: 64px;
+  font-size: 56px;
+  line-height: 1;
   animation: bounce 1s infinite alternate ease-in-out;
+}
+
+.drop-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.drop-subtitle {
+  font-size: 13px;
+  color: var(--text-sub);
 }
 
 @keyframes bounce {
   from { transform: translateY(0); }
-  to { transform: translateY(-12px); }
+  to { transform: translateY(-10px); }
 }
 
 /* Modals */
@@ -886,7 +925,7 @@ footer {
 }
 
 .month-item.active {
-  background-color: rgba(7, 193, 96, 0.1);
+  background-color: var(--primary-light);
   border-color: var(--primary);
 }
 
