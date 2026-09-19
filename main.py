@@ -1,8 +1,12 @@
 import os
 import sys
 
-# Ensure UTF-8 and unbuffered output on Windows
+# Ensure UTF-8 and unbuffered output on Windows, handle pythonw None streams
 if sys.platform == "win32":
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")
     try:
         sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
         sys.stderr.reconfigure(encoding="utf-8", line_buffering=True)
