@@ -474,11 +474,19 @@
   });
 
   async function uploadFiles(files) {
-    if (!files || files.length === 0) return;
+    const fileList = Array.from(files || []);
+    if (fileList.length === 0) return;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      showToast(`正在传输: ${file.name}...`);
+    const total = fileList.length;
+    let successCount = 0;
+
+    for (let i = 0; i < total; i++) {
+      const file = fileList[i];
+      if (total > 1) {
+        showToast(`正在传输 (${i + 1}/${total}): ${file.name}...`);
+      } else {
+        showToast(`正在传输: ${file.name}...`);
+      }
 
       const formData = new FormData();
       formData.append('file', file);
@@ -491,31 +499,45 @@
         });
         const result = await res.json();
         if (result.status === 'ok') {
-          showToast('传输成功');
+          successCount++;
+          if (total === 1) {
+            showToast('传输成功');
+          }
         } else {
-          showToast(`上传失败: ${result.error || '未知错误'}`);
+          showToast(`上传失败 (${file.name}): ${result.error || '未知错误'}`);
         }
       } catch (err) {
         console.error('Upload error', err);
-        showToast('传输失败，请检查网络');
+        showToast(`传输失败 (${file.name})，请检查网络`);
+      }
+    }
+
+    if (total > 1) {
+      if (successCount === total) {
+        showToast(`全部传输成功 (共 ${total} 个文件)`);
+      } else {
+        showToast(`传输完成: 成功 ${successCount}/${total} 个文件`);
       }
     }
   }
 
   // File pickers
   fileInput.addEventListener('change', (e) => {
-    uploadFiles(e.target.files);
+    const files = Array.from(e.target.files || []);
     fileInput.value = '';
+    uploadFiles(files);
   });
 
   mediaInput.addEventListener('change', (e) => {
-    uploadFiles(e.target.files);
+    const files = Array.from(e.target.files || []);
     mediaInput.value = '';
+    uploadFiles(files);
   });
 
   cameraInput.addEventListener('change', (e) => {
-    uploadFiles(e.target.files);
+    const files = Array.from(e.target.files || []);
     cameraInput.value = '';
+    uploadFiles(files);
   });
 
   // 7. Clipboard & Drag and Drop
