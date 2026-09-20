@@ -719,11 +719,7 @@ body.is-mobile .tool-buttons {
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background-color: rgba(0, 0, 0, 0.03);
-}
-
-[data-theme="dark"] .is-mobile .tool-btn {
-  background-color: rgba(255, 255, 255, 0.05);
+  background: none;
 }
 
 .is-mobile .tool-btn svg {
@@ -1216,10 +1212,7 @@ input:checked + .slider:before {
     width: 40px;
     height: 40px;
     border-radius: 10px;
-    background-color: rgba(0, 0, 0, 0.03);
-  }
-  [data-theme="dark"] .tool-btn {
-    background-color: rgba(255, 255, 255, 0.05);
+    background: none;
   }
   .tool-btn svg {
     width: 22px;
