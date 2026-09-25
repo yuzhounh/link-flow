@@ -8,7 +8,11 @@ If Not CreateObject("Scripting.FileSystemObject").FileExists(pyExe) Then
 End If
 
 ' Run stop.py silently (0 = hidden window), and wait for it to finish (True)
-WshShell.Run """" & pyExe & """ server/stop.py", 0, True
+Dim exitCode
+exitCode = WshShell.Run("""" & pyExe & """ server/stop.py", 0, True)
 
-' Show a friendly popup that auto-closes in 2 seconds (64 = Info icon)
-WshShell.Popup "LinkFlow service has been stopped.", 2, "LinkFlow", 64
+If exitCode = 0 Then
+    WshShell.Popup "LinkFlow has been stopped safely.", 2, "LinkFlow", 64
+Else
+    WshShell.Popup "LinkFlow was not stopped. No unrelated process was terminated.", 4, "LinkFlow", 48
+End If

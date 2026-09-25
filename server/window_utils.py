@@ -473,12 +473,11 @@ def activate_linkflow_window() -> bool:
 
 
 def open_or_activate_linkflow(port: int = 5837) -> bool:
-    """Activate existing LinkFlow window or open in default browser without duplicating tabs.
+    """Activate an existing visible LinkFlow window or open it in the default browser.
     
     1. First tries to find an existing browser window showing LinkFlow and brings it to front.
     2. If not found in window titles, calls backend /api/system/wake to notify existing tab if connected.
-    3. If an existing local client is active, brings browser window to front.
-    4. If no existing client or window, launches default browser via webbrowser.open.
+    3. If the LinkFlow tab cannot be activated precisely, opens a new visible tab.
     """
     # 1. Direct window title matching (0ms, 0 tabs created)
     if activate_linkflow_window():
@@ -506,32 +505,10 @@ def open_or_activate_linkflow(port: int = 5837) -> bool:
         time.sleep(0.1)
         if activate_linkflow_window():
             return True
-        # Bring frontmost browser window to foreground so the user sees the tab
-        try:
-            h_desk = user32.OpenDesktopW("default", 0, False, 0x01FF)
-            if h_desk:
-                user32.SetThreadDesktop(h_desk)
-            browser_hwnds = []
-            def enum_browser_cb(hwnd, lparam):
-                if user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
-                    cls_buf = ctypes.create_unicode_buffer(256)
-                    user32.GetClassNameW(hwnd, cls_buf, 256)
-                    cls_name = cls_buf.value
-                    if cls_name in ("Chrome_WidgetWin_1", "MozillaWindowClass"):
-                        title = ctypes.create_unicode_buffer(512)
-                        user32.GetWindowTextW(hwnd, title, 512)
-                        if title.value and not any(ex in title.value for ex in ["Antigravity", "Visual Studio"]):
-                            browser_hwnds.append(hwnd)
-                return True
-            cb = WNDENUMPROC(enum_browser_cb)
-            user32.EnumWindows(cb, 0)
-            if browser_hwnds:
-                force_foreground_window(browser_hwnds[0])
-                return True
-        except Exception:
-            pass
+        # A browser window title only reflects its active tab, so a hidden LinkFlow
+        # tab cannot be selected reliably here. Fall through and open a visible tab.
 
-    # 3. If no active tab or window exists, launch browser
+    # 3. If no LinkFlow window could be activated, launch a visible browser tab
     try:
         import webbrowser
         webbrowser.open(f"http://localhost:{port}")

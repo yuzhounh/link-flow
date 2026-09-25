@@ -13,11 +13,33 @@
   }
 
   // 2. State variables
+  const queryToken = new URLSearchParams(window.location.search).get('token') || '';
+  let authToken = queryToken || localStorage.getItem('linkflow_pairing_token') || '';
+  let pairingToken = authToken;
+  if (queryToken) {
+    localStorage.setItem('linkflow_pairing_token', queryToken);
+    const cleanUrl = `${window.location.pathname}${window.location.hash}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }
+
+  function apiFetch(url, options = {}) {
+    const headers = new Headers(options.headers || {});
+    if (authToken) headers.set('X-LinkFlow-Token', authToken);
+    return fetch(url, { ...options, headers });
+  }
+
+  function protectedFileUrl(filePath, absolute = false) {
+    const base = absolute ? window.location.origin : '';
+    const tokenQuery = authToken ? `?token=${encodeURIComponent(authToken)}` : '';
+    return `${base}/files/${encodeURI(filePath || '')}${tokenQuery}`;
+  }
+
   let ws = null;
   let lanIp = location.hostname;
   let allIps = [];
   let port = location.port || (location.protocol === 'https:' ? '443' : '80');
   let autoClipboard = true;
+  let maxUploadBytes = 256 * 1024 * 1024;
   let isHost = !isMobile && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
   let qrcodeObj = null;
   let allMessages = [];
@@ -60,6 +82,7 @@
   const settingDarkTheme = document.getElementById('setting-dark-theme');
   const clearAllBtn = document.getElementById('clear-all-btn');
   const storageStatsText = document.getElementById('storage-stats-text');
+  const appVersionText = document.getElementById('app-version-text');
 
   const lightboxMask = document.getElementById('lightbox-mask');
   const lightboxImg = document.getElementById('lightbox-img');
@@ -72,6 +95,14 @@
   const fileInput = document.getElementById('file-input');
   const mediaInput = document.getElementById('media-input');
   const cameraInput = document.getElementById('camera-input');
+
+  function applyHostCapabilities() {
+    if (settingAutoClipboard) settingAutoClipboard.disabled = !isHost;
+    if (clearAllBtn) clearAllBtn.hidden = !isHost;
+    if (openQrBtn) openQrBtn.hidden = !isHost;
+  }
+
+  applyHostCapabilities();
 
   // Theme initialization
   const themeColorMeta = document.getElementById('theme-color-meta');
@@ -99,7 +130,8 @@
   // 3. WebSocket Connection
   function connectWebSocket() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${location.host}/ws`;
+    const tokenQuery = authToken ? `?token=${encodeURIComponent(authToken)}` : '';
+    const wsUrl = `${protocol}//${location.host}/ws${tokenQuery}`;
 
     ws = new WebSocket(wsUrl);
 
@@ -119,7 +151,7 @@
 
     ws.onclose = () => {
       statusDot.classList.remove('online');
-      statusText.textContent = '连接断开，重试中...';
+      statusText.textContent = authToken || isHost ? '连接断开，重试中...' : '需要重新扫码配对';
       setTimeout(connectWebSocket, 2500);
     };
 
@@ -140,6 +172,7 @@
         if (oldIsHost !== isHost && allMessages.length > 0) {
           renderMessages(allMessages);
         }
+        applyHostCapabilities();
       }
     } else if (data.type === 'new_message') {
       const msg = data.message;
@@ -168,6 +201,8 @@
       showToast('聊天记录已清空');
     } else if (data.type === 'wake_tab') {
       triggerTabWakeNotice();
+    } else if (data.type === 'error') {
+      showToast(data.error || '操作未完成');
     }
   }
 
@@ -175,9 +210,14 @@
   async function loadInitialData() {
     try {
       const [msgRes, infoRes] = await Promise.all([
-        fetch('/api/messages?limit=100'),
-        fetch('/api/system/info')
+        apiFetch('/api/messages?limit=100'),
+        apiFetch('/api/system/info')
       ]);
+
+      if (msgRes.status === 401 || infoRes.status === 401) {
+        statusText.textContent = '配对已失效，请在电脑端重新扫码';
+        return;
+      }
 
       const msgData = await msgRes.json();
       if (msgData.status === 'ok') {
@@ -191,12 +231,16 @@
         allIps = infoData.all_ips || [lanIp];
         port = infoData.port;
         autoClipboard = infoData.auto_clipboard;
+        maxUploadBytes = infoData.max_upload_bytes || maxUploadBytes;
+        if (infoData.pairing_token) pairingToken = infoData.pairing_token;
+        if (appVersionText && infoData.version) appVersionText.textContent = `LinkFlow v${infoData.version}`;
         if (typeof infoData.is_host === 'boolean') {
           const oldIsHost = isHost;
           isHost = infoData.is_host;
           if (oldIsHost !== isHost && allMessages.length > 0) {
             renderMessages(allMessages);
           }
+          applyHostCapabilities();
         }
         settingAutoClipboard.checked = autoClipboard;
         updateStorageStats(infoData.stats);
@@ -368,11 +412,11 @@
       bubble.innerHTML = `
         <div class="file-icon-box">${icon}</div>
         <div class="file-info">
-          <a class="file-name" href="/files/${encodeURI(msg.file_path || '')}" target="_blank" title="${escapeHtml(msg.file_name || '')}"><span class="file-name-base">${escapeHtml(baseName)}</span><span class="file-name-ext">${escapeHtml(fileExtWithDot)}</span></a>
+          <a class="file-name" href="${protectedFileUrl(msg.file_path)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(msg.file_name || '')}"><span class="file-name-base">${escapeHtml(baseName)}</span><span class="file-name-ext">${escapeHtml(fileExtWithDot)}</span></a>
           <div class="file-meta">${ext} · ${formatFileSize(msg.file_size)}</div>
         </div>
         <div class="file-ops">
-          ${isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : `<a class="file-op-btn" href="/files/${encodeURI(msg.file_path || '')}" download="${escapeHtml(msg.file_name || '')}" title="下载保存">⬇️</a>`}
+          ${isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : `<a class="file-op-btn" href="${protectedFileUrl(msg.file_path)}" download="${escapeHtml(msg.file_name || '')}" title="下载保存">⬇️</a>`}
         </div>
       `;
       if (isHost) {
@@ -482,6 +526,10 @@
 
     for (let i = 0; i < total; i++) {
       const file = fileList[i];
+      if (file.size > maxUploadBytes) {
+        showToast(`${file.name} 超过 ${formatFileSize(maxUploadBytes)} 上传上限`);
+        continue;
+      }
       if (total > 1) {
         showToast(`正在传输 (${i + 1}/${total}): ${file.name}...`);
       } else {
@@ -493,7 +541,7 @@
       formData.append('sender', currentDevice);
 
       try {
-        const res = await fetch('/api/upload', {
+        const res = await apiFetch('/api/upload', {
           method: 'POST',
           body: formData
         });
@@ -629,7 +677,7 @@
 
     if (isHost) {
       try {
-        const res = await fetch('/api/system/copy-file', {
+        const res = await apiFetch('/api/system/copy-file', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: msg.id })
@@ -645,12 +693,12 @@
         showToast('请求服务失败，请检查服务是否正常运行');
       }
     } else {
-      const fileUrl = `${window.location.origin}/files/${msg.file_path}`;
+      const fileUrl = protectedFileUrl(msg.file_path, true);
       const ext = (msg.file_name ? msg.file_name.split('.').pop() : '').toUpperCase();
       const isImg = ['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'BMP'].includes(ext);
       if (isImg && navigator.clipboard && window.ClipboardItem) {
         try {
-          const resp = await fetch(fileUrl);
+          const resp = await apiFetch(fileUrl);
           const blob = await resp.blob();
           let clipBlob = blob;
           if (blob.type !== 'image/png') {
@@ -703,7 +751,7 @@
 
   async function revealInFolder(msgId) {
     try {
-      const res = await fetch('/api/system/open-file', {
+      const res = await apiFetch('/api/system/open-file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: msgId })
@@ -725,7 +773,7 @@
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'delete', id: msgId }));
       } else {
-        fetch(`/api/messages?id=${msgId}`, { method: 'DELETE' });
+        apiFetch(`/api/messages?id=${encodeURIComponent(msgId)}`, { method: 'DELETE' });
       }
     }
   }
@@ -762,7 +810,8 @@
   }
 
   function renderQrCode(ip) {
-    const targetUrl = `http://${ip}:${port}`;
+    const tokenQuery = pairingToken ? `?token=${encodeURIComponent(pairingToken)}` : '';
+    const targetUrl = `http://${ip}:${port}/${tokenQuery}`;
     qrUrlText.textContent = targetUrl;
     const container = document.getElementById('qr-canvas-container');
     container.innerHTML = '';
@@ -782,7 +831,20 @@
     }
   }
 
-  function showQrModal() {
+  async function showQrModal() {
+    if (!pairingToken) {
+      try {
+        const res = await apiFetch('/api/system/info');
+        const data = await res.json();
+        pairingToken = data.pairing_token || '';
+      } catch (err) {
+        console.error('Failed to load pairing token', err);
+      }
+    }
+    if (!pairingToken) {
+      showToast('无法生成安全配对链接，请重启 LinkFlow 后重试');
+      return;
+    }
     qrModal.classList.add('open');
     renderQrCode(ipSelect && ipSelect.value ? ipSelect.value : lanIp);
   }
@@ -831,7 +893,7 @@
     if (!monthList) return;
     monthList.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-sub);font-size:13px;">正在加载月份数据...</div>';
     try {
-      const res = await fetch('/api/months');
+      const res = await apiFetch('/api/months');
       const data = await res.json();
       if (data.status !== 'ok') {
         monthList.innerHTML = '<div class="month-empty-state">获取月份失败</div>';
@@ -900,7 +962,7 @@
     if (monthModal) monthModal.classList.remove('open');
     showToast(`正在载入 ${formatMonthLabel(monthStr)} 记录...`);
     try {
-      const res = await fetch(`/api/messages?month=${monthStr}`);
+      const res = await apiFetch(`/api/messages?month=${encodeURIComponent(monthStr)}`);
       const data = await res.json();
       if (data.status === 'ok') {
         currentViewMonth = monthStr;
@@ -925,7 +987,7 @@
     if (historyBanner) historyBanner.style.display = 'none';
     showToast('正在切回实时消息...');
     try {
-      const res = await fetch('/api/messages?limit=100');
+      const res = await apiFetch('/api/messages?limit=100');
       const data = await res.json();
       if (data.status === 'ok') {
         allMessages = data.messages || [];
@@ -964,7 +1026,7 @@
   // 11. Settings Modal
   openSettingsBtn.addEventListener('click', async () => {
     try {
-      const res = await fetch('/api/system/info');
+      const res = await apiFetch('/api/system/info');
       const data = await res.json();
       if (data.status === 'ok') {
         updateStorageStats(data.stats);
@@ -978,13 +1040,17 @@
   settingAutoClipboard.addEventListener('change', async (e) => {
     autoClipboard = e.target.checked;
     try {
-      await fetch('/api/system/info', {
+      const res = await apiFetch('/api/system/info', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ auto_clipboard: autoClipboard })
       });
+      if (!res.ok) throw new Error(`Settings update failed: ${res.status}`);
       showToast(autoClipboard ? '已开启剪贴板自动同步' : '已关闭剪贴板自动同步');
     } catch (err) {
+      autoClipboard = !autoClipboard;
+      e.target.checked = autoClipboard;
+      showToast('只有电脑端可以修改此设置');
       console.error(err);
     }
   });
@@ -994,7 +1060,7 @@
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'clear_all' }));
       } else {
-        await fetch('/api/messages', { method: 'DELETE' });
+        await apiFetch('/api/messages', { method: 'DELETE' });
       }
       settingsModal.classList.remove('open');
     }
@@ -1088,12 +1154,8 @@
     if (isDuplicateSuppressed) return;
     isDuplicateSuppressed = true;
 
-    // Attempt automatic window.close
-    try {
-      window.close();
-    } catch (e) {}
-
-    // Show duplicate prevention modal in case window.close was blocked by browser policy
+    // Keep the newly opened tab visible. Browser-launched tabs may otherwise close
+    // immediately, while the existing LinkFlow tab remains hidden in another window.
     showDuplicateModal();
   }
 
@@ -1107,9 +1169,8 @@
         <div class="duplicate-box">
           <div class="duplicate-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
+              <path d="M3.5 7.5 8 3v18"></path>
+              <path d="M16 3v18l4.5-4.5"></path>
             </svg>
           </div>
           <div class="duplicate-title">文件传输助手已在运行</div>
@@ -1209,4 +1270,3 @@
   loadInitialData();
   connectWebSocket();
 })();
-

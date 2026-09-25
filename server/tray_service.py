@@ -5,8 +5,11 @@ import winreg
 import ctypes
 from ctypes import wintypes
 import webbrowser
+import urllib.parse
 import logging
 from typing import Optional, Callable
+
+from .version import VERSION
 
 logger = logging.getLogger("LinkFlow.Tray")
 
@@ -132,13 +135,16 @@ class LinkFlowTray:
         files_dir: str,
         icon_path: str,
         on_exit: Optional[Callable] = None,
-        start_vbs_path: Optional[str] = None
+        start_vbs_path: Optional[str] = None,
+        pairing_token: str = "",
+        log_path: Optional[str] = None,
     ):
         self.port = port
         self.lan_ip = lan_ip
         self.files_dir = files_dir
         self.icon_path = icon_path
         self.on_exit = on_exit
+        self.log_path = log_path
         
         if start_vbs_path:
             self.start_vbs_path = start_vbs_path
@@ -147,7 +153,9 @@ class LinkFlowTray:
             self.start_vbs_path = os.path.join(base_dir, "start.vbs")
 
         self.pc_url = f"http://localhost:{port}"
-        self.phone_url = f"http://{lan_ip}:{port}"
+        encoded_token = urllib.parse.quote(pairing_token, safe="")
+        token_query = f"?token={encoded_token}" if encoded_token else ""
+        self.phone_url = f"http://{lan_ip}:{port}/{token_query}"
         self.qapp = None
         self.tray = None
 
@@ -185,6 +193,28 @@ class LinkFlowTray:
         except Exception as e:
             logger.warning(f"Failed to open folder: {e}")
 
+    def open_log(self):
+        try:
+            if not self.log_path or not os.path.isfile(self.log_path):
+                raise FileNotFoundError("LinkFlow log file is not available")
+            os.startfile(self.log_path)
+        except Exception as e:
+            logger.warning(f"Failed to open log file: {e}")
+            if self.tray:
+                self.tray.showMessage(
+                    "LinkFlow",
+                    "暂时无法打开运行日志。",
+                    QtWidgets.QSystemTrayIcon.Warning,
+                    2500,
+                )
+
+    def request_quit(self):
+        """Request QApplication shutdown safely from the Tornado server thread."""
+        if HAS_PYQT and self.qapp:
+            QtCore.QMetaObject.invokeMethod(self.qapp, "quit", QtCore.Qt.QueuedConnection)
+        elif self.on_exit:
+            self.on_exit()
+
     def quit(self):
         if self.tray:
             self.tray.hide()
@@ -212,7 +242,7 @@ class LinkFlowTray:
         else:
             self.tray.setIcon(self.qapp.style().standardIcon(QtWidgets.QStyle.SP_ComputerIcon))
 
-        self.tray.setToolTip(f"LinkFlow (端口: {self.port})")
+        self.tray.setToolTip(f"LinkFlow v{VERSION} (端口: {self.port})")
 
         # Context Menu
         menu = ModernTrayMenu()
@@ -260,6 +290,9 @@ class LinkFlowTray:
         # 3. 打开文件接收目录
         act_folder = menu.addAction("打开文件接收目录")
         act_folder.triggered.connect(self.open_files_folder)
+
+        act_log = menu.addAction("查看运行日志")
+        act_log.triggered.connect(self.open_log)
 
         menu.addSeparator()
 

@@ -1,35 +1,53 @@
+import json
 import os
 import sys
-import subprocess
-import re
+import time
+import urllib.error
+import urllib.request
 
-def stop_linkflow():
-    print("正在查找正在运行的 LinkFlow 服务...")
-    killed = 0
-    # Find processes by listening port (default 8000 and 8001)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+from server.instance import read_runtime_info, runtime_path
+
+
+def stop_linkflow(data_dir: str = None) -> bool:
+    data_dir = data_dir or os.path.join(BASE_DIR, "data")
+    runtime = read_runtime_info(data_dir)
+    if not runtime:
+        print("未检测到可验证的 LinkFlow 运行实例。")
+        return False
+
+    port = runtime["port"]
+    url = f"http://127.0.0.1:{port}/api/system/shutdown"
+    request = urllib.request.Request(
+        url,
+        data=b"{}",
+        headers={"Content-Type": "application/json", "User-Agent": "LinkFlow-Stop"},
+        method="POST",
+    )
     try:
-        output = subprocess.check_output("netstat -ano", shell=True, text=True)
-        pids = set()
-        target_ports = [":5837 ", ":8000 ", ":8001 ", ":8002 "]
-        for line in output.splitlines():
-            if any(p in line for p in target_ports):
-                parts = line.strip().split()
-                if len(parts) >= 5 and parts[3] == "LISTENING":
-                    pids.add(parts[-1])
-        
-        for pid in pids:
-            if pid != "0" and pid != str(os.getpid()):
-                res = subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True, text=True)
-                if res.returncode == 0:
-                    print(f"成功终止 LinkFlow 进程 (PID: {pid})")
-                    killed += 1
-    except Exception as e:
-        print("停止服务时出错:", e)
+        with urllib.request.urlopen(request, timeout=2) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        if payload.get("status") != "ok":
+            print("LinkFlow 拒绝了停止请求。")
+            return False
+    except (OSError, ValueError, urllib.error.URLError) as e:
+        print(f"无法安全停止 LinkFlow：{e}")
+        print("未强制结束任何进程，以免影响其他本地服务。")
+        return False
 
-    if killed == 0:
-        print("未检测到运行中的 LinkFlow 服务进程。")
-    else:
-        print(f"已停止 {killed} 个 LinkFlow 服务。")
+    deadline = time.monotonic() + 5
+    path = runtime_path(data_dir)
+    while time.monotonic() < deadline:
+        if not os.path.exists(path):
+            print(f"LinkFlow 已安全停止 (PID: {runtime['pid']})。")
+            return True
+        time.sleep(0.1)
+
+    print("停止请求已发送，LinkFlow 仍在完成退出流程。")
+    return True
 
 if __name__ == "__main__":
-    stop_linkflow()
+    raise SystemExit(0 if stop_linkflow() else 1)

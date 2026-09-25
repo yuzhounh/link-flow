@@ -1,16 +1,15 @@
 import os
-import sys
 import json
 import time
 import uuid
 import mimetypes
 import logging
-import subprocess
-import ctypes
-from ctypes import wintypes
-import threading
+import hmac
+import secrets
+import shutil
 from datetime import datetime
-from typing import Set, Dict, Any, Optional
+from typing import Set, Dict, Any, Optional, Callable
+from urllib.parse import urlsplit
 
 import tornado.web
 import tornado.websocket
@@ -19,9 +18,59 @@ import tornado.ioloop
 from .database import Database
 from .network_utils import get_lan_ip, get_all_lan_ips
 from .clipboard import set_clipboard_text, get_clipboard_text, set_clipboard_files
-from .thumb_service import generate_thumbnail
+from .version import MAX_UPLOAD_BYTES, VERSION
 
 logger = logging.getLogger(__name__)
+
+
+def _managed_path(base_dir: str, relative_path: str) -> Optional[str]:
+    """Resolve a stored relative path without allowing it to escape base_dir."""
+    if not relative_path:
+        return None
+    base = os.path.abspath(base_dir)
+    candidate = os.path.abspath(os.path.join(base, relative_path))
+    try:
+        if os.path.commonpath([base, candidate]) != base:
+            return None
+    except ValueError:
+        return None
+    return candidate
+
+
+def _load_or_create_pairing_token(data_dir: str) -> str:
+    config_path = os.path.join(data_dir, "config.json")
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            token = json.load(f).get("pairing_token", "")
+        if isinstance(token, str) and len(token) >= 32:
+            return token
+    except (OSError, ValueError, AttributeError):
+        pass
+
+    token = secrets.token_urlsafe(32)
+    temp_path = f"{config_path}.tmp"
+    with open(temp_path, "w", encoding="utf-8") as f:
+        json.dump({"pairing_token": token}, f, ensure_ascii=False, indent=2)
+    os.replace(temp_path, config_path)
+    return token
+
+
+def request_origin_is_allowed(request) -> bool:
+    origin = request.headers.get("Origin")
+    if not origin:
+        return True
+    parsed = urlsplit(origin)
+    return parsed.scheme in {"http", "https"} and parsed.netloc.lower() == request.host.lower()
+
+
+def request_is_authorized(request, state: "AppState") -> bool:
+    if state.is_host_ip(request.remote_ip):
+        return True
+    supplied = request.headers.get("X-LinkFlow-Token", "")
+    if not supplied:
+        raw_token = request.arguments.get("token", [b""])[0]
+        supplied = raw_token.decode("utf-8", errors="ignore") if isinstance(raw_token, bytes) else str(raw_token)
+    return bool(supplied) and hmac.compare_digest(supplied, state.pairing_token)
 
 def delete_message_files(state, msg: Optional[Dict[str, Any]]):
     """Delete physical file and thumbnail from disk when a message is deleted."""
@@ -29,8 +78,8 @@ def delete_message_files(state, msg: Optional[Dict[str, Any]]):
         return
     file_path = msg.get("file_path")
     if file_path:
-        full_path = os.path.normpath(os.path.join(state.files_dir, file_path))
-        if full_path.startswith(os.path.normpath(state.files_dir)) and os.path.isfile(full_path):
+        full_path = _managed_path(state.files_dir, file_path)
+        if full_path and os.path.isfile(full_path):
             try:
                 os.remove(full_path)
                 logger.info(f"Deleted physical file: {full_path}")
@@ -38,13 +87,49 @@ def delete_message_files(state, msg: Optional[Dict[str, Any]]):
                 logger.error(f"Failed to delete physical file {full_path}: {e}")
     thumb_path = msg.get("thumb_path")
     if thumb_path:
-        full_thumb = os.path.normpath(os.path.join(state.thumbs_dir, thumb_path))
-        if full_thumb.startswith(os.path.normpath(state.thumbs_dir)) and os.path.isfile(full_thumb):
+        full_thumb = _managed_path(state.thumbs_dir, thumb_path)
+        if full_thumb and os.path.isfile(full_thumb):
             try:
                 os.remove(full_thumb)
                 logger.info(f"Deleted physical thumb: {full_thumb}")
             except Exception as e:
                 logger.error(f"Failed to delete physical thumb {full_thumb}: {e}")
+
+
+def clear_all_data(state: "AppState") -> int:
+    """Clear database records and all app-managed files as one user action."""
+    backup_root = os.path.join(state.data_dir, f".clear-{uuid.uuid4().hex}")
+    os.makedirs(backup_root, exist_ok=False)
+    moved_directories = []
+
+    try:
+        for directory in (state.files_dir, state.thumbs_dir):
+            if os.path.exists(directory):
+                backup_path = os.path.join(backup_root, os.path.basename(directory))
+                os.replace(directory, backup_path)
+                moved_directories.append((directory, backup_path))
+            os.makedirs(directory, exist_ok=True)
+    except Exception:
+        for directory, backup_path in reversed(moved_directories):
+            shutil.rmtree(directory, ignore_errors=True)
+            os.replace(backup_path, directory)
+        shutil.rmtree(backup_root, ignore_errors=True)
+        raise
+
+    try:
+        count = state.db.clear_all_messages()
+    except Exception:
+        for directory, backup_path in reversed(moved_directories):
+            shutil.rmtree(directory, ignore_errors=True)
+            os.replace(backup_path, directory)
+        shutil.rmtree(backup_root, ignore_errors=True)
+        raise
+
+    try:
+        shutil.rmtree(backup_root)
+    except OSError as e:
+        logger.warning(f"Cleared records but could not remove temporary file backup: {e}")
+    return count
 
 class AppState:
     def __init__(self, data_dir: str, port: int):
@@ -59,8 +144,17 @@ class AppState:
         self.port = port
         self.lan_ip = get_lan_ip()
         self.all_ips = get_all_lan_ips()
+        self.local_ips = {"127.0.0.1", "::1"}.union(self.all_ips)
+        self.pairing_token = _load_or_create_pairing_token(self.data_dir)
         self.auto_clipboard = True  # Automatically copy received text from phone to PC clipboard
         self.ws_clients: Set["WebSocketHandler"] = set()
+        self.shutdown_callback: Optional[Callable[[], None]] = None
+
+    def is_host_ip(self, client_ip: str) -> bool:
+        return client_ip in self.local_ips
+
+    def set_shutdown_callback(self, callback: Callable[[], None]):
+        self.shutdown_callback = callback
 
     def broadcast(self, data: dict):
         payload = json.dumps(data, ensure_ascii=False)
@@ -75,13 +169,22 @@ class AppState:
 
 class BaseHandler(tornado.web.RequestHandler):
     def set_default_headers(self):
-        self.set_header("Access-Control-Allow-Origin", "*")
-        self.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        self.set_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+        self.set_header("X-Content-Type-Options", "nosniff")
+        self.set_header("Referrer-Policy", "no-referrer")
+
+    def prepare(self):
+        if not request_origin_is_allowed(self.request):
+            raise tornado.web.HTTPError(403, reason="Cross-origin request rejected")
+        if not request_is_authorized(self.request, self.state):
+            raise tornado.web.HTTPError(401, reason="Pairing token required")
 
     def options(self, *args, **kwargs):
         self.set_status(204)
         self.finish()
+
+    def require_host(self):
+        if not self.state.is_host_ip(self.request.remote_ip):
+            raise tornado.web.HTTPError(403, reason="This operation is only available on the host PC")
 
     @property
     def state(self) -> AppState:
@@ -90,17 +193,22 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class WebSocketHandler(tornado.websocket.WebSocketHandler):
     def check_origin(self, origin):
-        return True
+        return request_origin_is_allowed(self.request)
 
     @property
     def state(self) -> AppState:
         return self.application.settings["state"]
 
+    def prepare(self):
+        if not request_origin_is_allowed(self.request):
+            raise tornado.web.HTTPError(403, reason="Cross-origin WebSocket rejected")
+        if not request_is_authorized(self.request, self.state):
+            raise tornado.web.HTTPError(401, reason="Pairing token required")
+
     def open(self):
         self.state.ws_clients.add(self)
         client_ip = self.request.remote_ip
-        local_ips = {"127.0.0.1", "::1"}.union(self.state.all_ips)
-        is_host = client_ip in local_ips
+        is_host = self.state.is_host_ip(client_ip)
         # Send welcome / connected status
         self.write_message(json.dumps({
             "type": "connected",
@@ -120,9 +228,9 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
                 if not content:
                     return
 
-                sender = data.get("sender", "pc")
-                msg_id = data.get("id") or str(uuid.uuid4())
-                ts = data.get("timestamp") or int(time.time() * 1000)
+                sender = "pc" if self.state.is_host_ip(self.request.remote_ip) else "phone"
+                msg_id = str(uuid.uuid4())
+                ts = int(time.time() * 1000)
 
                 record = {
                     "id": msg_id,
@@ -160,7 +268,13 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
                     })
 
             elif msg_type == "clear_all":
-                self.state.db.clear_all_messages()
+                if not self.state.is_host_ip(self.request.remote_ip):
+                    self.write_message(json.dumps({
+                        "type": "error",
+                        "error": "Clearing all data is only available on the host PC"
+                    }))
+                    return
+                clear_all_data(self.state)
                 self.state.broadcast({
                     "type": "messages_cleared"
                 })
@@ -177,7 +291,7 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
 
 class MessagesHandler(BaseHandler):
     def get(self):
-        limit = int(self.get_argument("limit", "50"))
+        limit = min(max(int(self.get_argument("limit", "50")), 1), 500)
         before_ts = self.get_argument("before_ts", None)
         search = self.get_argument("search", None)
         month = self.get_argument("month", None)
@@ -198,14 +312,15 @@ class MessagesHandler(BaseHandler):
                 self.set_status(404)
                 self.write({"error": "Message not found"})
         else:
-            count = self.state.db.clear_all_messages()
+            self.require_host()
+            count = clear_all_data(self.state)
             self.state.broadcast({"type": "messages_cleared"})
             self.write({"status": "ok", "cleared_count": count})
 
 
 class UploadHandler(BaseHandler):
     def post(self):
-        sender = self.get_argument("sender", "pc")
+        sender = "pc" if self.state.is_host_ip(self.request.remote_ip) else "phone"
         note = self.get_argument("note", "").strip()
 
         if "file" not in self.request.files:
@@ -218,6 +333,12 @@ class UploadHandler(BaseHandler):
         filename = os.path.basename(raw_filename) or "unnamed_file"
         body = uploaded_file["body"]
         file_size = len(body)
+        if file_size > MAX_UPLOAD_BYTES:
+            self.set_status(413)
+            self.write({
+                "error": f"File exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB upload limit"
+            })
+            return
 
         # Categorize by month: data/files/YYYY-MM/
         month_str = datetime.now().strftime("%Y-%m")
@@ -285,19 +406,24 @@ class SystemInfoHandler(BaseHandler):
     def get(self):
         stats = self.state.db.get_stats()
         client_ip = self.request.remote_ip
-        local_ips = {"127.0.0.1", "::1"}.union(self.state.all_ips)
-        is_host = client_ip in local_ips
-        self.write({
+        is_host = self.state.is_host_ip(client_ip)
+        response = {
             "status": "ok",
+            "version": VERSION,
             "lan_ip": self.state.lan_ip,
             "all_ips": self.state.all_ips,
             "port": self.state.port,
             "auto_clipboard": self.state.auto_clipboard,
             "is_host": is_host,
+            "max_upload_bytes": MAX_UPLOAD_BYTES,
             "stats": stats
-        })
+        }
+        if is_host:
+            response["pairing_token"] = self.state.pairing_token
+        self.write(response)
 
     def post(self):
+        self.require_host()
         try:
             data = json.loads(self.request.body)
             if "auto_clipboard" in data:
@@ -313,6 +439,7 @@ class SystemInfoHandler(BaseHandler):
 
 class ClipboardHandler(BaseHandler):
     def post(self):
+        self.require_host()
         try:
             data = json.loads(self.request.body)
             text = data.get("text", "")
@@ -323,6 +450,7 @@ class ClipboardHandler(BaseHandler):
             self.write({"error": str(e)})
 
     def get(self):
+        self.require_host()
         text = get_clipboard_text()
         self.write({"status": "ok", "text": text})
 
@@ -333,6 +461,7 @@ from .window_utils import reveal_in_explorer
 
 class OpenFileHandler(BaseHandler):
     def post(self):
+        self.require_host()
         try:
             data = json.loads(self.request.body)
             msg_id = data.get("id")
@@ -342,8 +471,8 @@ class OpenFileHandler(BaseHandler):
                 self.write({"error": "File not found"})
                 return
 
-            full_path = os.path.normpath(os.path.join(self.state.files_dir, msg["file_path"]))
-            if os.path.exists(full_path):
+            full_path = _managed_path(self.state.files_dir, msg["file_path"])
+            if full_path and os.path.exists(full_path):
                 reveal_in_explorer(full_path)
                 self.write({"status": "ok", "path": full_path})
             else:
@@ -356,6 +485,7 @@ class OpenFileHandler(BaseHandler):
 
 class CopyFileHandler(BaseHandler):
     def post(self):
+        self.require_host()
         try:
             data = json.loads(self.request.body)
             msg_id = data.get("id")
@@ -365,8 +495,8 @@ class CopyFileHandler(BaseHandler):
                 self.write({"error": "未找到对应的文件记录"})
                 return
 
-            full_path = os.path.normpath(os.path.join(self.state.files_dir, msg["file_path"]))
-            if os.path.isfile(full_path):
+            full_path = _managed_path(self.state.files_dir, msg["file_path"])
+            if full_path and os.path.isfile(full_path):
                 ok = set_clipboard_files([full_path])
                 if ok:
                     self.write({"status": "ok", "path": full_path, "file_name": msg.get("file_name", "")})
@@ -383,6 +513,7 @@ class CopyFileHandler(BaseHandler):
 
 class WakeHandler(BaseHandler):
     def post(self):
+        self.require_host()
         local_ips = {"127.0.0.1", "::1", "localhost"}
         local_clients = [c for c in self.state.ws_clients if c.request.remote_ip in local_ips]
         has_client = len(local_clients) > 0
@@ -403,11 +534,41 @@ class WakeHandler(BaseHandler):
         self.post()
 
 
+class ShutdownHandler(BaseHandler):
+    def post(self):
+        self.require_host()
+        if not self.state.shutdown_callback:
+            self.set_status(503)
+            self.write({"error": "Shutdown is not available"})
+            return
+        self.write({"status": "ok", "message": "LinkFlow is shutting down"})
+        self.finish()
+        tornado.ioloop.IOLoop.current().call_later(0.05, self.state.shutdown_callback)
+
+
 class NoCacheStaticFileHandler(tornado.web.StaticFileHandler):
     def set_extra_headers(self, path):
         self.set_header("Cache-Control", "no-cache, no-store, must-revalidate")
         self.set_header("Pragma", "no-cache")
         self.set_header("Expires", "0")
+        self.set_header("X-Content-Type-Options", "nosniff")
+        self.set_header("Referrer-Policy", "no-referrer")
+
+
+class ProtectedStaticFileHandler(tornado.web.StaticFileHandler):
+    @property
+    def state(self) -> AppState:
+        return self.application.settings["state"]
+
+    def prepare(self):
+        if not request_origin_is_allowed(self.request):
+            raise tornado.web.HTTPError(403, reason="Cross-origin request rejected")
+        if not request_is_authorized(self.request, self.state):
+            raise tornado.web.HTTPError(401, reason="Pairing token required")
+
+    def set_extra_headers(self, path):
+        self.set_header("X-Content-Type-Options", "nosniff")
+        self.set_header("Referrer-Policy", "no-referrer")
 
 
 def create_app(data_dir: str, static_dir: str, port: int) -> tornado.web.Application:
@@ -415,7 +576,6 @@ def create_app(data_dir: str, static_dir: str, port: int) -> tornado.web.Applica
     settings = {
         "state": state,
         "debug": False,
-        "max_buffer_size": 2 * 1024 * 1024 * 1024,  # 2GB max upload
     }
 
     handlers = [
@@ -428,9 +588,10 @@ def create_app(data_dir: str, static_dir: str, port: int) -> tornado.web.Applica
         (r"/api/system/open-file", OpenFileHandler),
         (r"/api/system/copy-file", CopyFileHandler),
         (r"/api/system/wake", WakeHandler),
+        (r"/api/system/shutdown", ShutdownHandler),
         # Files and thumbnails static route
-        (r"/files/(.*)", tornado.web.StaticFileHandler, {"path": state.files_dir}),
-        (r"/thumbs/(.*)", tornado.web.StaticFileHandler, {"path": state.thumbs_dir}),
+        (r"/files/(.*)", ProtectedStaticFileHandler, {"path": state.files_dir}),
+        (r"/thumbs/(.*)", ProtectedStaticFileHandler, {"path": state.thumbs_dir}),
         # Frontend UI static route (disable cache for immediate updates)
         (r"/(.*)", NoCacheStaticFileHandler, {"path": static_dir, "default_filename": "index.html"}),
     ]

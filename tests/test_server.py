@@ -6,6 +6,7 @@ import unittest
 import urllib.parse
 from tornado.testing import AsyncHTTPTestCase, gen_test
 from tornado.websocket import websocket_connect
+from tornado import gen
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
@@ -31,7 +32,10 @@ class TestServerApp(AsyncHTTPTestCase):
         self.assertEqual(response.code, 200)
         data = json.loads(response.body)
         self.assertEqual(data["status"], "ok")
+        self.assertEqual(data["version"], "0.2.1")
         self.assertIn("lan_ip", data)
+        self.assertGreaterEqual(len(data["pairing_token"]), 32)
+        self.assertEqual(data["max_upload_bytes"], 256 * 1024 * 1024)
         self.assertTrue(data["auto_clipboard"])
 
     def test_settings_update(self):
@@ -40,6 +44,36 @@ class TestServerApp(AsyncHTTPTestCase):
         self.assertEqual(response.code, 200)
         data = json.loads(response.body)
         self.assertFalse(data["auto_clipboard"])
+
+    def test_cross_origin_api_request_is_rejected(self):
+        response = self.fetch(
+            "/api/system/info",
+            headers={"Origin": "https://example.invalid"},
+        )
+        self.assertEqual(response.code, 403)
+
+    def test_shutdown_requires_registered_callback(self):
+        response = self.fetch(
+            "/api/system/shutdown",
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body="{}",
+        )
+        self.assertEqual(response.code, 503)
+
+    @gen_test
+    async def test_shutdown_invokes_registered_callback(self):
+        called = []
+        self._app.settings["state"].set_shutdown_callback(lambda: called.append(True))
+        response = await self.get_http_client().fetch(
+            self.get_url("/api/system/shutdown"),
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body="{}",
+        )
+        self.assertEqual(response.code, 200)
+        await gen.sleep(0.1)
+        self.assertEqual(called, [True])
 
     def test_static_files(self):
         resp = self.fetch("/")
@@ -134,6 +168,30 @@ class TestServerApp(AsyncHTTPTestCase):
         self.assertEqual(msg_data["status"], "ok")
         self.assertIsInstance(msg_data["messages"], list)
 
+    def test_clear_all_removes_records_and_physical_files(self):
+        boundary = "----WebKitFormBoundaryClearTest"
+        filename = "clear_me.txt"
+        file_content = b"clear all should remove this file"
+        body = (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+            f"Content-Type: text/plain\r\n\r\n"
+        ).encode("utf-8") + file_content + f"\r\n--{boundary}--\r\n".encode("utf-8")
+        headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
+
+        upload = self.fetch("/api/upload", method="POST", headers=headers, body=body)
+        self.assertEqual(upload.code, 200)
+        record = json.loads(upload.body)["message"]
+        full_path = os.path.join(self.temp_dir.name, "data", "files", record["file_path"])
+        self.assertTrue(os.path.isfile(full_path))
+
+        cleared = self.fetch("/api/messages", method="DELETE")
+        self.assertEqual(cleared.code, 200)
+        self.assertEqual(json.loads(cleared.body)["cleared_count"], 1)
+        self.assertFalse(os.path.exists(full_path))
+        remaining = json.loads(self.fetch("/api/messages").body)["messages"]
+        self.assertEqual(remaining, [])
+
     @gen_test
     async def test_websocket_chat(self):
         ws_url = f"ws://localhost:{self.get_http_port()}/ws"
@@ -158,7 +216,8 @@ class TestServerApp(AsyncHTTPTestCase):
         reply_data = json.loads(reply)
         self.assertEqual(reply_data["type"], "new_message")
         self.assertEqual(reply_data["message"]["content"], "Redmi K80 Pro 发送的局域网消息")
-        self.assertEqual(reply_data["message"]["sender"], "phone")
+        # Sender identity is derived from the connection, not trusted client input.
+        self.assertEqual(reply_data["message"]["sender"], "pc")
 
         conn.close()
 

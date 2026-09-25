@@ -227,10 +227,17 @@ header {
 /* Search bar (collapsible) */
 #search-bar {
   display: none;
+  position: absolute;
+  top: 60px;
+  left: 0;
+  right: 0;
+  height: 60px;
   padding: 8px 16px;
   background-color: var(--bg-header);
   border-bottom: 1px solid var(--border-color);
   gap: 8px;
+  align-items: center;
+  z-index: 20;
 }
 
 #search-bar.active {
@@ -1151,6 +1158,11 @@ input:checked + .slider:before {
     height: 54px;
     padding: 0 12px;
   }
+  #search-bar {
+    top: 54px;
+    height: 54px;
+    padding: 8px 12px;
+  }
   .header-left {
     gap: 8px;
     min-width: 0;
@@ -1346,4 +1358,3 @@ input:checked + .slider:before {
 [data-theme="dark"] .dup-btn-secondary:hover {
   background-color: rgba(255, 255, 255, 0.06);
 }
-

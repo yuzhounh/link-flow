@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from unittest import mock
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
@@ -15,6 +16,7 @@ from server.window_utils import (
     select_in_open_explorer,
     activate_open_explorer_folder,
 )
+from server import window_utils
 
 class TestWindowUtils(unittest.TestCase):
     def test_imports_and_types(self):
@@ -44,3 +46,20 @@ class TestWindowUtils(unittest.TestCase):
         hwnd = activate_open_explorer_folder(r"C:\non_existent_folder_xyz")
         self.assertIsNone(hwnd)
 
+    def test_open_linkflow_keeps_new_tab_when_existing_tab_is_hidden(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"status":"ok","has_client":true}'
+        with mock.patch.object(window_utils, "activate_linkflow_window", side_effect=[False, False]), \
+             mock.patch("urllib.request.urlopen", return_value=response), \
+             mock.patch("webbrowser.open", return_value=True) as browser_open, \
+             mock.patch("time.sleep"):
+            self.assertTrue(window_utils.open_or_activate_linkflow(5837))
+        browser_open.assert_called_once_with("http://localhost:5837")
+
+    def test_open_linkflow_reuses_visible_window(self):
+        with mock.patch.object(window_utils, "activate_linkflow_window", return_value=True), \
+             mock.patch("urllib.request.urlopen") as urlopen, \
+             mock.patch("webbrowser.open") as browser_open:
+            self.assertTrue(window_utils.open_or_activate_linkflow(5837))
+        urlopen.assert_not_called()
+        browser_open.assert_not_called()

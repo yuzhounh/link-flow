@@ -11,7 +11,20 @@ sys.path.insert(0, BASE_DIR)
 
 from server.clipboard import set_clipboard_files
 from server.database import Database
-from server.app import delete_message_files, AppState
+from server.app import (
+    delete_message_files,
+    AppState,
+    request_is_authorized,
+    request_origin_is_allowed,
+)
+
+
+class DummyRequest:
+    def __init__(self, remote_ip, host="192.168.1.10:5837", headers=None, arguments=None):
+        self.remote_ip = remote_ip
+        self.host = host
+        self.headers = headers or {}
+        self.arguments = arguments or {}
 
 class TestCopyAndDelete(unittest.TestCase):
     def setUp(self):
@@ -76,6 +89,41 @@ class TestCopyAndDelete(unittest.TestCase):
 
         self.assertFalse(os.path.exists(full_file))
         self.assertFalse(os.path.exists(full_thumb))
+
+    def test_pairing_token_persists_and_guards_remote_requests(self):
+        first_token = self.state.pairing_token
+        reloaded_state = AppState(data_dir=self.data_dir, port=5837)
+        self.assertEqual(reloaded_state.pairing_token, first_token)
+
+        host_request = DummyRequest("127.0.0.1")
+        self.assertTrue(request_is_authorized(host_request, self.state))
+
+        remote_request = DummyRequest("192.168.1.20")
+        self.assertFalse(request_is_authorized(remote_request, self.state))
+
+        authorized_remote = DummyRequest(
+            "192.168.1.20",
+            headers={"X-LinkFlow-Token": first_token},
+        )
+        self.assertTrue(request_is_authorized(authorized_remote, self.state))
+
+        download_request = DummyRequest(
+            "192.168.1.20",
+            arguments={"token": [first_token.encode("utf-8")]},
+        )
+        self.assertTrue(request_is_authorized(download_request, self.state))
+
+    def test_origin_must_match_request_host(self):
+        same_origin = DummyRequest(
+            "192.168.1.20",
+            headers={"Origin": "http://192.168.1.10:5837"},
+        )
+        other_origin = DummyRequest(
+            "192.168.1.20",
+            headers={"Origin": "https://example.invalid"},
+        )
+        self.assertTrue(request_origin_is_allowed(same_origin))
+        self.assertFalse(request_origin_is_allowed(other_origin))
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,8 +4,6 @@ import unittest
 import tempfile
 import time
 import json
-from io import BytesIO
-from PIL import Image
 
 # Ensure project root is in sys.path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -15,7 +13,6 @@ from server.network_utils import get_lan_ip, find_available_port
 from server.clipboard import set_clipboard_text, get_clipboard_text
 from server.database import Database
 from server.thumb_service import generate_thumbnail
-import fitz
 
 class TestLinkFlow(unittest.TestCase):
     def setUp(self):
@@ -98,8 +95,8 @@ class TestLinkFlow(unittest.TestCase):
     def test_image_no_thumbnail(self):
         # Images are treated as files and do not generate thumbnails
         img_path = os.path.join(self.temp_dir.name, "test_photo.jpg")
-        img = Image.new("RGB", (1920, 1080), color=(100, 150, 200))
-        img.save(img_path, "JPEG")
+        with open(img_path, "wb") as f:
+            f.write(b"not-a-real-image")
 
         thumb_name = generate_thumbnail(img_path, self.thumbs_dir, "image/jpeg")
         self.assertIsNone(thumb_name)
@@ -107,11 +104,8 @@ class TestLinkFlow(unittest.TestCase):
     def test_pdf_no_thumbnail(self):
         # PDFs are also treated uniformly as files without thumbnails
         pdf_path = os.path.join(self.temp_dir.name, "test_doc.pdf")
-        doc = fitz.open()
-        page = doc.new_page(width=595, height=842)
-        page.insert_text((50, 100), "LinkFlow Test PDF Document", fontsize=24)
-        doc.save(pdf_path)
-        doc.close()
+        with open(pdf_path, "wb") as f:
+            f.write(b"%PDF-1.7\n%%EOF")
 
         thumb_name = generate_thumbnail(pdf_path, self.thumbs_dir, "application/pdf")
         self.assertIsNone(thumb_name)

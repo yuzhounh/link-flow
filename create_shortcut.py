@@ -4,7 +4,8 @@ import subprocess
 def create_shortcut():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     start_vbs = os.path.join(base_dir, "start.vbs")
-    icon_path = os.path.join(base_dir, "static", "icon.ico")
+    # Keep a versioned icon path so Windows does not reuse a stale shortcut icon cache.
+    icon_path = os.path.join(base_dir, "static", "icon-v5.ico")
     desktop = os.path.join(os.environ.get("USERPROFILE", os.path.expanduser("~")), "Desktop")
     shortcut_path = os.path.join(desktop, "LinkFlow.lnk")
     description = "LinkFlow - 私人文件传输助手"
@@ -50,4 +51,3 @@ Write-Host "SUCCESS: Created shortcut at: $shortcutPath"
 
 if __name__ == "__main__":
     create_shortcut()
-
