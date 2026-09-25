@@ -1,7 +1,16 @@
-# LinkFlow v0.2.1 - 私人文件传输助手
+<p align="center">
+  <img src="static/icon.png" width="104" alt="LinkFlow brand icon" />
+</p>
 
-> 专为「手机 ↔ 电脑」打造的极简私人内容传输工具。
-> 像微信“文件传输助手”一样随手丢文字、截图、照片、视频、PDF、ZIP，但不依赖微信/QQ，零外部云端，局域网极速直连。
+<h1 align="center">LinkFlow</h1>
+
+<p align="center"><strong>专为「手机 ↔ 电脑」打造的极简私人内容传输工具。</strong></p>
+
+LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照片、视频、PDF、ZIP，但不依赖微信/QQ，零外部云端，局域网极速直连，手机免装 App 扫码即用。当前版本为 **v0.2.1**。
+
+<p align="center">
+  <img src="screenshots/ss_1.png" width="800" alt="LinkFlow 界面截图" />
+</p>
 
 ## ✨ 核心特性
 
