@@ -1,9 +1,10 @@
-__pycache__/
-*.py[cod]
-*$py.class
+bin/
+obj/
+dist/
 data/
 *.db
+*.log
+*.user
+.vs/
 .vscode/
 .idea/
-*.log
-
