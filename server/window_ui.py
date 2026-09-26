@@ -56,7 +56,6 @@ if HAS_WEBENGINE:
             self.data_dir = os.path.abspath(data_dir)
             self.config_path = os.path.join(self.data_dir, "config.json")
             self.tray = tray
-            self.has_shown_close_hint = False
 
             self.setWindowTitle("LinkFlow - 文件传输助手")
             if os.path.isfile(self.icon_path):
@@ -211,22 +210,10 @@ if HAS_WEBENGINE:
             super().changeEvent(event)
 
         def closeEvent(self, event):
-            """Intercept close button to hide to tray instead of quitting."""
+            """Intercept close button to hide to tray silently instead of quitting."""
             self.save_window_state()
             event.ignore()
             self.hide()
-
-            if self.tray and not self.has_shown_close_hint:
-                self.has_shown_close_hint = True
-                try:
-                    self.tray.showMessage(
-                        "LinkFlow",
-                        "LinkFlow 已最小化到托盘，后台持续运行。\n右键托盘图标可彻底退出。",
-                        QtWidgets.QSystemTrayIcon.Information,
-                        3000,
-                    )
-                except Exception:
-                    pass
 
         @QtCore.pyqtSlot()
         def show_and_activate(self):

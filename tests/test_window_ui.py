@@ -113,7 +113,7 @@ class TestWindowUI(unittest.TestCase):
         win.closeEvent(close_event)
 
         self.assertFalse(win.isVisible())
-        mock_tray.showMessage.assert_called_once()
+        mock_tray.showMessage.assert_not_called()
 
         win.deleteLater()
 
