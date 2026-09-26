@@ -124,10 +124,10 @@ if HAS_PYQT:
                     painter.setRenderHint(QtGui.QPainter.Antialiasing)
                     painter.setPen(QtGui.QColor("#24A1DE"))
                     font = QtGui.QFont("Microsoft YaHei UI", -1)
-                    font.setPixelSize(12)
+                    font.setPixelSize(11)
                     font.setBold(True)
                     painter.setFont(font)
-                    right_rect = QtCore.QRect(geo.right() - 24, geo.top(), 16, geo.height())
+                    right_rect = QtCore.QRect(geo.right() - 22, geo.top(), 14, geo.height())
                     painter.drawText(right_rect, QtCore.Qt.AlignCenter, "✓")
                     painter.end()
 else:
@@ -275,21 +275,8 @@ class LinkFlowTray(TrayBase):
             logger.warning("PyQt5 not installed; system tray disabled.")
             return
 
-        if sys.platform == "win32":
-            try:
-                ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
-            except Exception:
-                try:
-                    ctypes.windll.shcore.SetProcessDpiAwareness(2)
-                except Exception:
-                    pass
-
         if not QtWidgets.QApplication.instance():
             try:
-                if hasattr(QtCore.Qt, "HighDpiScaleFactorRoundingPolicy"):
-                    QtGui.QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
-                        QtCore.Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
-                    )
                 QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
                 QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
             except Exception:
@@ -331,15 +318,15 @@ class LinkFlowTray(TrayBase):
             QMenu {
                 background-color: #ffffff;
                 border: 1px solid #dce0e5;
-                border-radius: 8px;
+                border-radius: 6px;
                 padding: 4px 3px;
-                font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
-                font-size: 12px;
+                font-family: "Microsoft YaHei UI", -apple-system, sans-serif;
+                font-size: 11px;
                 color: #1f2328;
-                min-width: 150px;
+                min-width: 140px;
             }
             QMenu::item {
-                padding: 4px 26px 4px 12px;
+                padding: 4px 24px 4px 10px;
                 border-radius: 4px;
                 margin: 1px 2px;
             }
@@ -350,7 +337,7 @@ class LinkFlowTray(TrayBase):
             QMenu::separator {
                 height: 1px;
                 background-color: #eaedf1;
-                margin: 3px 8px;
+                margin: 3px 6px;
             }
         """)
 
