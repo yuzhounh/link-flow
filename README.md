@@ -10,7 +10,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-f59e0b.svg" alt="License: MIT"></a>
 </p>
 
-LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照片、视频、PDF、ZIP，但不依赖微信/QQ，零外部云端，局域网极速直连，手机免装 App 扫码即用。当前版本为 **v0.2.1**。
+LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照片、视频、PDF、ZIP，但不依赖微信/QQ，零外部云端，局域网极速直连，手机免装 App 扫码即用。当前版本为 **v0.3.0**（Windows 原生实现）。
 
 <p align="center">
   <img src="screenshots/ss_1.png" width="800" alt="LinkFlow 界面截图" />
@@ -36,39 +36,29 @@ LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照�
   - 剪贴板、设置和资源管理器操作只能从 Windows 主机调用。
   - 数据保存在本地 `data/messages.db` 和 `data/files/YYYY-MM/`；配对令牌保存在 `data/config.json`。
 
+## 技术栈 (Tech Stack)
+
+- **C# / .NET 10**，WinForms 窗口外壳 + 系统托盘（原生右键菜单，按显示器真实 DPI 渲染）。
+- **WebView2** 承载界面：`static/` 下的网页由手机端和电脑端共用。
+- **ASP.NET Core Kestrel** 提供局域网 HTTP / WebSocket 服务；**SQLite** 保存消息记录。
+
+旧版 Python/PyQt 实现保留在 [v0.2.2](../../releases/tag/v0.2.2)。
+
 ## 快速上手 (Quick Start)
 
-### 安装依赖
+需要 Windows 10/11、[.NET 10 SDK](https://dotnet.microsoft.com/download) 和 WebView2 运行时（Windows 11 已自带）。
 
-建议使用 Python 3.11 或更高版本，并在项目目录运行：
-
-```powershell
-git clone https://github.com/yuzhounh/link-flow.git
-cd link-flow
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-```
-
-四个 Windows 启动与停止脚本会优先使用项目 `.venv` 中的 Python；未创建虚拟环境时，再尝试系统 Python。
-
-运行测试：
+在项目目录用 PowerShell 7 运行：
 
 ```powershell
-python -m pip install -r requirements-dev.txt
-python -m pytest -q
+pwsh -File .\build.ps1
 ```
 
-## 🚀 启动与使用方法
+脚本会编译到 `dist\`，在桌面创建 **LinkFlow** 快捷方式并启动；之后直接点桌面图标即可。
 
-### 方式一：后台静默模式 (日常推荐，完全无黑框)
-- **启动**：双击 **`start.vbs`**（无控制台黑框窗口，后台静默常驻，自动拉起浏览器）。
-- **停止**：双击 **`stop.vbs`**（通过 LinkFlow 本机关闭接口安全退出，不会按端口强制结束其他程序）。
-- **查看日志**：右键托盘图标选择 **「查看运行日志」**；日志保存在 `data/linkflow.log`，会自动轮转。
-
-### 方式二：控制台窗口模式 (适合查看实时日志)
-- **启动**：双击 **`Start with Console.bat`**（打开控制台窗口，输出实时访问日志）。
-- **停止**：双击 **`Stop with Console.bat`**（控制台终止并回显停止结果）。
+- **退出**：右键托盘图标选择「退出」，或运行 `dist\LinkFlow.exe --stop`。
+- **查看日志**：右键托盘图标选择「查看运行日志」；日志保存在 `data/linkflow.log`，会自动轮转。
+- **防火墙**：首次启动时如 Windows 防火墙询问，需允许 LinkFlow 访问专用网络，手机才能连接。
 
 ### 手机端连接：
 1. 确保手机与电脑连接到同一个 Wi-Fi。
