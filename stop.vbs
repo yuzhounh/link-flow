@@ -1,10 +1,17 @@
 Set WshShell = CreateObject("WScript.Shell")
-WshShell.CurrentDirectory = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)
+Dim scriptDir
+Dim fileSystem
+Set fileSystem = CreateObject("Scripting.FileSystemObject")
+scriptDir = fileSystem.GetParentFolderName(WScript.ScriptFullName)
+WshShell.CurrentDirectory = scriptDir
 
 Dim pyExe
-pyExe = "C:\ProgramData\Anaconda3\python.exe"
-If Not CreateObject("Scripting.FileSystemObject").FileExists(pyExe) Then
-    pyExe = "python.exe"
+pyExe = scriptDir & "\.venv\Scripts\python.exe"
+If Not fileSystem.FileExists(pyExe) Then
+    pyExe = "C:\ProgramData\Anaconda3\python.exe"
+    If Not fileSystem.FileExists(pyExe) Then
+        pyExe = "python.exe"
+    End If
 End If
 
 ' Run stop.py silently (0 = hidden window), and wait for it to finish (True)

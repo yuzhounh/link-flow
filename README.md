@@ -6,13 +6,17 @@
 
 <p align="center"><strong>专为「手机 ↔ 电脑」打造的极简私人内容传输工具。</strong></p>
 
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-f59e0b.svg" alt="License: MIT"></a>
+</p>
+
 LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照片、视频、PDF、ZIP，但不依赖微信/QQ，零外部云端，局域网极速直连，手机免装 App 扫码即用。当前版本为 **v0.2.1**。
 
 <p align="center">
   <img src="screenshots/ss_1.png" width="800" alt="LinkFlow 界面截图" />
 </p>
 
-## ✨ 核心特性
+## 亮点特性 (Features)
 
 - **双向内容时间线**：手机与电脑双向即时呈现，清晰的时间戳与设备来源标识。
 - **手机免装 App**：电脑启动服务，手机扫码即可在浏览器打开；配对二维码携带随机令牌，支持 PWA「添加到主屏幕」。
@@ -32,13 +36,21 @@ LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照�
   - 剪贴板、设置和资源管理器操作只能从 Windows 主机调用。
   - 数据保存在本地 `data/messages.db` 和 `data/files/YYYY-MM/`；配对令牌保存在 `data/config.json`。
 
-## 安装依赖
+## 快速上手 (Quick Start)
+
+### 安装依赖
 
 建议使用 Python 3.11 或更高版本，并在项目目录运行：
 
 ```powershell
+git clone https://github.com/yuzhounh/link-flow.git
+cd link-flow
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 ```
+
+四个 Windows 启动与停止脚本会优先使用项目 `.venv` 中的 Python；未创建虚拟环境时，再尝试系统 Python。
 
 运行测试：
 
@@ -66,3 +78,7 @@ python -m pytest -q
 首次配对后，令牌会保存在手机浏览器的本地存储中。服务重启后令牌保持不变；如需重新配对，可删除 `data/config.json` 后重启 LinkFlow。
 
 版本更新记录见 [CHANGELOG.md](CHANGELOG.md)。
+
+## 开源协议 (License)
+
+本项目采用 [MIT 许可证](LICENSE)。
