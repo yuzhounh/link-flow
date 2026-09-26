@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0 - 2026-09-27
+
+Rewritten as a native Windows application. The web UI (`static/`) and the data layout (`data/`) are unchanged, so existing messages, files and phone pairings keep working.
+
+### Changed
+
+- Replaced the Python/Tornado/PyQt stack with C# / .NET 10: ASP.NET Core Kestrel for the LAN HTTP/WebSocket server, WebView2 for the main window, WinForms for the window shell and system tray.
+- The main window and tray menu render at each monitor's real DPI (Per-Monitor V2), with GDI ClearType text in the tray menu.
+- "Reveal in folder" uses the Windows Shell API and reuses an Explorer window already showing that folder.
+- The phone connection address prefers the network adapter that has a default gateway.
+- Uploads are streamed to disk instead of being buffered in memory.
+- Replaced the VBS/BAT launchers and Python scripts with a single `LinkFlow.exe` (`--stop` for a graceful shutdown) and a `build.ps1` build script that creates a desktop shortcut.
+
+### Removed
+
+- The Python implementation (`main.py`, `server/*.py`, `tests/`, launch scripts). It remains available in v0.2.2.
+
 ## 0.2.2 - 2026-09-27
 
 Final release of the Python/PyQt implementation. Later versions are a native Windows (.NET) rewrite.
