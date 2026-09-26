@@ -1,4 +1,0 @@
-PyQt5==5.15.10
-PyQtWebEngine==5.15.6
-tornado==6.5.1
-
