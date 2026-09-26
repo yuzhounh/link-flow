@@ -124,10 +124,10 @@ if HAS_PYQT:
                     painter.setRenderHint(QtGui.QPainter.Antialiasing)
                     painter.setPen(QtGui.QColor("#24A1DE"))
                     font = QtGui.QFont("Segoe UI Variable Text", -1)
-                    font.setPixelSize(14)
+                    font.setPixelSize(12)
                     font.setBold(True)
                     painter.setFont(font)
-                    right_rect = QtCore.QRect(geo.right() - 32, geo.top(), 20, geo.height())
+                    right_rect = QtCore.QRect(geo.right() - 24, geo.top(), 16, geo.height())
                     painter.drawText(right_rect, QtCore.Qt.AlignCenter, "✓")
                     painter.end()
 else:
@@ -319,16 +319,16 @@ class LinkFlowTray(TrayBase):
                 background-color: #ffffff;
                 border: 1px solid #dce0e5;
                 border-radius: 8px;
-                padding: 6px 4px;
+                padding: 4px 3px;
                 font-family: "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
-                font-size: 14px;
+                font-size: 12px;
                 color: #1f2328;
-                min-width: 190px;
+                min-width: 160px;
             }
             QMenu::item {
-                padding: 7px 36px 7px 14px;
-                border-radius: 5px;
-                margin: 2px 4px;
+                padding: 5px 28px 5px 12px;
+                border-radius: 4px;
+                margin: 1px 2px;
             }
             QMenu::item:selected {
                 background-color: #f2f4f7;
@@ -337,15 +337,12 @@ class LinkFlowTray(TrayBase):
             QMenu::separator {
                 height: 1px;
                 background-color: #eaedf1;
-                margin: 4px 10px;
+                margin: 3px 8px;
             }
         """)
 
-        # 1. 打开 LinkFlow (Bold item)
+        # 1. 打开 LinkFlow
         act_open = menu.addAction("打开 LinkFlow")
-        font = act_open.font()
-        font.setBold(True)
-        act_open.setFont(font)
         act_open.triggered.connect(self.open_web)
 
         # 2. 在浏览器中打开
