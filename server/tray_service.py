@@ -123,7 +123,7 @@ if HAS_PYQT:
                     painter = QtGui.QPainter(self)
                     painter.setRenderHint(QtGui.QPainter.Antialiasing)
                     painter.setPen(QtGui.QColor("#24A1DE"))
-                    font = QtGui.QFont("Segoe UI Variable Text", -1)
+                    font = QtGui.QFont("Microsoft YaHei UI", -1)
                     font.setPixelSize(12)
                     font.setBold(True)
                     painter.setFont(font)
@@ -275,8 +275,21 @@ class LinkFlowTray(TrayBase):
             logger.warning("PyQt5 not installed; system tray disabled.")
             return
 
+        if sys.platform == "win32":
+            try:
+                ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
+            except Exception:
+                try:
+                    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+                except Exception:
+                    pass
+
         if not QtWidgets.QApplication.instance():
             try:
+                if hasattr(QtCore.Qt, "HighDpiScaleFactorRoundingPolicy"):
+                    QtGui.QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
+                        QtCore.Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+                    )
                 QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
                 QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
             except Exception:
@@ -320,13 +333,13 @@ class LinkFlowTray(TrayBase):
                 border: 1px solid #dce0e5;
                 border-radius: 8px;
                 padding: 4px 3px;
-                font-family: "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+                font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
                 font-size: 12px;
                 color: #1f2328;
-                min-width: 160px;
+                min-width: 150px;
             }
             QMenu::item {
-                padding: 5px 28px 5px 12px;
+                padding: 4px 26px 4px 12px;
                 border-radius: 4px;
                 margin: 1px 2px;
             }
