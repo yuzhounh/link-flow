@@ -1,5 +1,5 @@
 APP_NAME = "LinkFlow"
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 
 # Keep the default below the size where a single buffered request could exhaust
 # a typical desktop process. Tornado enforces this at the HTTP connection layer.

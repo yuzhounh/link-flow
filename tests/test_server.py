@@ -32,7 +32,7 @@ class TestServerApp(AsyncHTTPTestCase):
         self.assertEqual(response.code, 200)
         data = json.loads(response.body)
         self.assertEqual(data["status"], "ok")
-        self.assertEqual(data["version"], "0.2.1")
+        self.assertEqual(data["version"], "0.2.2")
         self.assertIn("lan_ip", data)
         self.assertGreaterEqual(len(data["pairing_token"]), 32)
         self.assertEqual(data["max_upload_bytes"], 256 * 1024 * 1024)

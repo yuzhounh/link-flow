@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.2 - 2026-09-27
+
+Final release of the Python/PyQt implementation. Later versions are a native Windows (.NET) rewrite.
+
+### Changed
+
+- The PC client now runs in a standalone desktop window that remembers its size and position; closing it hides LinkFlow to the tray.
+- Restyled the tray menu to match native Windows 11 context menus and adjusted its size under High DPI.
+- Enlarged the phone and computer avatars, refined scrollbars, and removed the redundant header icon and title.
+- Added a brand header and screenshots to the README.
+
+### Fixed
+
+- Adjusted Per-Monitor V2 DPI handling for the main window and tray menu.
+- Removed the popup notification shown when the window is closed to the tray.
+
 ## 0.2.1 - 2026-09-25
 
 ### Fixed
