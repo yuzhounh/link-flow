@@ -124,10 +124,10 @@ if HAS_PYQT:
                     painter.setRenderHint(QtGui.QPainter.Antialiasing)
                     painter.setPen(QtGui.QColor("#24A1DE"))
                     font = QtGui.QFont("Segoe UI Variable Text", -1)
-                    font.setPixelSize(20)
+                    font.setPixelSize(14)
                     font.setBold(True)
                     painter.setFont(font)
-                    right_rect = QtCore.QRect(geo.right() - 46, geo.top(), 28, geo.height())
+                    right_rect = QtCore.QRect(geo.right() - 32, geo.top(), 20, geo.height())
                     painter.drawText(right_rect, QtCore.Qt.AlignCenter, "✓")
                     painter.end()
 else:
@@ -313,21 +313,21 @@ class LinkFlowTray(TrayBase):
         menu = ModernTrayMenu()
         menu.setWindowFlags(menu.windowFlags() | QtCore.Qt.FramelessWindowHint)
 
-        # Style matching Windows 11 modern context menus with font size 20 and system drop shadow
+        # Style matching Windows 11 modern context menus with High DPI support
         menu.setStyleSheet("""
             QMenu {
                 background-color: #ffffff;
                 border: 1px solid #dce0e5;
                 border-radius: 8px;
-                padding: 8px 6px;
+                padding: 6px 4px;
                 font-family: "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
-                font-size: 20px;
+                font-size: 14px;
                 color: #1f2328;
-                min-width: 260px;
+                min-width: 190px;
             }
             QMenu::item {
-                padding: 12px 48px 12px 22px;
-                border-radius: 6px;
+                padding: 7px 36px 7px 14px;
+                border-radius: 5px;
                 margin: 2px 4px;
             }
             QMenu::item:selected {
@@ -337,7 +337,7 @@ class LinkFlowTray(TrayBase):
             QMenu::separator {
                 height: 1px;
                 background-color: #eaedf1;
-                margin: 6px 12px;
+                margin: 4px 10px;
             }
         """)
 
