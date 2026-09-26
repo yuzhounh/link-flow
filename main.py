@@ -7,6 +7,15 @@ if base_dir not in sys.path:
 
 # Ensure UTF-8 and unbuffered output on Windows, handle pythonw None streams
 if sys.platform == "win32":
+    try:
+        import ctypes
+        ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
+    except Exception:
+        try:
+            import ctypes
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            pass
     if sys.stdout is None:
         sys.stdout = open(os.devnull, "w", encoding="utf-8")
     if sys.stderr is None:

@@ -275,8 +275,18 @@ class LinkFlowTray(TrayBase):
             logger.warning("PyQt5 not installed; system tray disabled.")
             return
 
+        if sys.platform == "win32":
+            try:
+                ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
+            except Exception:
+                try:
+                    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+                except Exception:
+                    pass
+
         if not QtWidgets.QApplication.instance():
             try:
+                QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts, True)
                 QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
                 QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
             except Exception:
