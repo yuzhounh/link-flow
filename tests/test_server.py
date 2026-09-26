@@ -251,5 +251,26 @@ class TestServerApp(AsyncHTTPTestCase):
         self.assertEqual(copy_data["status"], "ok")
         self.assertEqual(copy_data["file_name"], filename)
 
+    def test_system_wake_callback(self):
+        # 1. Wake without callback
+        resp = self.fetch("/api/system/wake", method="POST", headers={"Content-Type": "application/json"}, body="{}")
+        self.assertEqual(resp.code, 200)
+        data = json.loads(resp.body)
+        self.assertFalse(data.get("window_activated"))
+
+        # 2. Wake with callback
+        called = False
+        def on_wake():
+            nonlocal called
+            called = True
+
+        self._app.settings["state"].set_wake_callback(on_wake)
+        resp2 = self.fetch("/api/system/wake", method="POST", headers={"Content-Type": "application/json"}, body="{}")
+        self.assertEqual(resp2.code, 200)
+        data2 = json.loads(resp2.body)
+        self.assertTrue(data2.get("window_activated"))
+        self.assertTrue(called)
+
+
 if __name__ == "__main__":
     unittest.main()

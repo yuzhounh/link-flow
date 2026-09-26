@@ -495,6 +495,8 @@ def open_or_activate_linkflow(port: int = 5837) -> bool:
         )
         with urllib.request.urlopen(req, timeout=0.8) as resp:
             data = json.loads(resp.read().decode("utf-8"))
+            if data.get("window_activated"):
+                return True
             if data.get("has_client"):
                 has_active_tab = True
     except Exception:

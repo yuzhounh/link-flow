@@ -125,12 +125,6 @@ def main():
         print("=" * 60)
         logger.info("LinkFlow v%s started on port %s", VERSION, port)
 
-        try:
-            from server.window_utils import open_or_activate_linkflow
-            open_or_activate_linkflow(port)
-        except Exception as e:
-            logger.warning(f"Failed to auto-launch browser: {e}")
-
         loop = tornado.ioloop.IOLoop.current()
 
         def stop_server():
@@ -154,8 +148,10 @@ def main():
             start_vbs_path=start_vbs_path,
             pairing_token=pairing_token,
             log_path=log_path,
+            data_dir=data_dir,
         )
         app.settings["state"].set_shutdown_callback(tray.request_quit if HAS_PYQT else stop_server)
+        app.settings["state"].set_wake_callback(tray.request_wake)
 
         if HAS_PYQT:
             server_thread = threading.Thread(target=loop.start, name="TornadoServer", daemon=True)
@@ -171,6 +167,11 @@ def main():
                     server_thread.join(timeout=2)
                 print("\nLinkFlow 服务已停止。")
         else:
+            try:
+                from server.window_utils import open_or_activate_linkflow
+                open_or_activate_linkflow(port)
+            except Exception as e:
+                logger.warning(f"Failed to auto-launch browser: {e}")
             try:
                 loop.start()
             except KeyboardInterrupt:

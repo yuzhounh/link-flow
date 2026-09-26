@@ -16,8 +16,15 @@ logger = logging.getLogger("LinkFlow.Tray")
 try:
     from PyQt5 import QtWidgets, QtGui, QtCore
     HAS_PYQT = True
+    try:
+        from .window_ui import LinkFlowMainWindow, HAS_WEBENGINE
+    except ImportError:
+        HAS_WEBENGINE = False
+        LinkFlowMainWindow = None
 except ImportError:
     HAS_PYQT = False
+    HAS_WEBENGINE = False
+    LinkFlowMainWindow = None
 
 REG_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 REG_RUN_NAME = "LinkFlow"
@@ -126,8 +133,10 @@ if HAS_PYQT:
 else:
     ModernTrayMenu = object
 
+TrayBase = QtCore.QObject if HAS_PYQT else object
 
-class LinkFlowTray:
+
+class LinkFlowTray(TrayBase):
     def __init__(
         self,
         port: int,
@@ -138,13 +147,18 @@ class LinkFlowTray:
         start_vbs_path: Optional[str] = None,
         pairing_token: str = "",
         log_path: Optional[str] = None,
+        data_dir: Optional[str] = None,
     ):
+        if HAS_PYQT:
+            super().__init__()
         self.port = port
         self.lan_ip = lan_ip
         self.files_dir = files_dir
         self.icon_path = icon_path
         self.on_exit = on_exit
         self.log_path = log_path
+        self.data_dir = data_dir if data_dir else os.path.dirname(files_dir)
+        self.window = None
         
         if start_vbs_path:
             self.start_vbs_path = start_vbs_path
@@ -159,7 +173,17 @@ class LinkFlowTray:
         self.qapp = None
         self.tray = None
 
+    def request_wake(self):
+        """Safely wake or show the window from Tornado server thread."""
+        if HAS_PYQT and self.window and self.qapp:
+            QtCore.QMetaObject.invokeMethod(self.window, "show_and_activate", QtCore.Qt.QueuedConnection)
+        else:
+            self.open_web()
+
     def open_web(self):
+        if self.window:
+            self.window.show_and_activate()
+            return
         try:
             from .window_utils import open_or_activate_linkflow
             open_or_activate_linkflow(self.port)
@@ -169,6 +193,12 @@ class LinkFlowTray:
                 webbrowser.open(self.pc_url)
             except Exception:
                 pass
+
+    def open_browser(self):
+        try:
+            webbrowser.open(self.pc_url)
+        except Exception as e:
+            logger.warning(f"Failed to open browser: {e}")
 
     def copy_phone_url(self):
         try:
@@ -211,11 +241,18 @@ class LinkFlowTray:
     def request_quit(self):
         """Request QApplication shutdown safely from the Tornado server thread."""
         if HAS_PYQT and self.qapp:
-            QtCore.QMetaObject.invokeMethod(self.qapp, "quit", QtCore.Qt.QueuedConnection)
+            QtCore.QMetaObject.invokeMethod(self, "quit", QtCore.Qt.QueuedConnection)
         elif self.on_exit:
             self.on_exit()
 
+    @QtCore.pyqtSlot()
     def quit(self):
+        if self.window:
+            try:
+                self.window.save_window_state()
+                self.window.close()
+            except Exception:
+                pass
         if self.tray:
             self.tray.hide()
         if self.on_exit:
@@ -226,15 +263,30 @@ class LinkFlowTray:
         if self.qapp:
             self.qapp.quit()
 
+    def _save_on_about_to_quit(self):
+        if self.window:
+            try:
+                self.window.save_window_state()
+            except Exception:
+                pass
+
     def run(self):
         if not HAS_PYQT:
             logger.warning("PyQt5 not installed; system tray disabled.")
             return
 
+        if not QtWidgets.QApplication.instance():
+            try:
+                QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
+                QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
+            except Exception:
+                pass
+
         self.qapp = QtWidgets.QApplication.instance()
         if not self.qapp:
             self.qapp = QtWidgets.QApplication(sys.argv)
         self.qapp.setQuitOnLastWindowClosed(False)
+        self.qapp.aboutToQuit.connect(self._save_on_about_to_quit)
 
         self.tray = QtWidgets.QSystemTrayIcon()
         if os.path.exists(self.icon_path):
@@ -243,6 +295,19 @@ class LinkFlowTray:
             self.tray.setIcon(self.qapp.style().standardIcon(QtWidgets.QStyle.SP_ComputerIcon))
 
         self.tray.setToolTip(f"LinkFlow v{VERSION} (端口: {self.port})")
+
+        if HAS_WEBENGINE and LinkFlowMainWindow:
+            try:
+                self.window = LinkFlowMainWindow(
+                    port=self.port,
+                    icon_path=self.icon_path,
+                    data_dir=self.data_dir,
+                    tray=self.tray,
+                )
+                self.window.show_and_activate()
+            except Exception as e:
+                logger.warning(f"Failed to create LinkFlowMainWindow: {e}")
+                self.window = None
 
         # Context Menu
         menu = ModernTrayMenu()
@@ -283,11 +348,15 @@ class LinkFlowTray:
         act_open.setFont(font)
         act_open.triggered.connect(self.open_web)
 
-        # 2. 复制手机连接地址
+        # 2. 在浏览器中打开
+        act_browser = menu.addAction("在浏览器中打开")
+        act_browser.triggered.connect(self.open_browser)
+
+        # 3. 复制手机连接地址
         act_copy = menu.addAction("复制手机连接地址")
         act_copy.triggered.connect(self.copy_phone_url)
 
-        # 3. 打开文件接收目录
+        # 4. 打开文件接收目录
         act_folder = menu.addAction("打开文件接收目录")
         act_folder.triggered.connect(self.open_files_folder)
 

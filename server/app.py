@@ -149,12 +149,16 @@ class AppState:
         self.auto_clipboard = True  # Automatically copy received text from phone to PC clipboard
         self.ws_clients: Set["WebSocketHandler"] = set()
         self.shutdown_callback: Optional[Callable[[], None]] = None
+        self.wake_callback: Optional[Callable[[], None]] = None
 
     def is_host_ip(self, client_ip: str) -> bool:
         return client_ip in self.local_ips
 
     def set_shutdown_callback(self, callback: Callable[[], None]):
         self.shutdown_callback = callback
+
+    def set_wake_callback(self, callback: Callable[[], None]):
+        self.wake_callback = callback
 
     def broadcast(self, data: dict):
         payload = json.dumps(data, ensure_ascii=False)
@@ -514,6 +518,14 @@ class CopyFileHandler(BaseHandler):
 class WakeHandler(BaseHandler):
     def post(self):
         self.require_host()
+        window_activated = False
+        if self.state.wake_callback:
+            try:
+                self.state.wake_callback()
+                window_activated = True
+            except Exception as e:
+                logger.warning(f"Wake callback error: {e}")
+
         local_ips = {"127.0.0.1", "::1", "localhost"}
         local_clients = [c for c in self.state.ws_clients if c.request.remote_ip in local_ips]
         has_client = len(local_clients) > 0
@@ -526,6 +538,7 @@ class WakeHandler(BaseHandler):
                     pass
         self.write({
             "status": "ok",
+            "window_activated": window_activated,
             "has_client": has_client,
             "client_count": len(local_clients)
         })
