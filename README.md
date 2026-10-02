@@ -1,13 +1,20 @@
 <p align="center">
-  <img src="static/icon.png" width="104" alt="LinkFlow brand icon" />
+  <img src="static/icon.png" width="112" alt="Link Flow logo">
 </p>
 
-<h1 align="center">LinkFlow</h1>
+<h1 align="center">Link Flow</h1>
 
-<p align="center"><strong>专为「手机 ↔ 电脑」打造的极简私人内容传输工具。</strong></p>
+<p align="center"><strong>手机与电脑局域网直连，随手传文字、图片和文件。</strong></p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-f59e0b.svg" alt="License: MIT"></a>
+  <a href="https://github.com/yuzhounh/link-flow/releases/latest"><img src="https://img.shields.io/github/v/release/yuzhounh/link-flow?style=flat&amp;color=0969da&amp;label=Release" alt="Latest stable release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-f59e0b?style=flat" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/Platform-Windows-0078d4?style=flat" alt="Platform: Windows">
+  <img src="https://img.shields.io/badge/C%23-.NET-512bd4?style=flat&amp;logo=dotnet&amp;logoColor=white" alt="C#: .NET">
+</p>
+
+<p align="center">
+  <a href="https://github.com/yuzhounh/link-flow/releases/latest">下载发布版</a> · <a href="#快速开始">快速开始</a> · <a href="LICENSE">开源协议</a>
 </p>
 
 LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照片、视频、PDF、ZIP，但不依赖微信/QQ，零外部云端，局域网极速直连，手机免装 App 扫码即用。当前版本为 **v0.3.0**（Windows 原生实现）。
@@ -16,7 +23,7 @@ LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照�
   <img src="screenshots/ss_1.png" width="800" alt="LinkFlow 界面截图" />
 </p>
 
-## 亮点特性 (Features)
+## 功能特点
 
 - **双向内容时间线**：手机与电脑双向即时呈现，清晰的时间戳与设备来源标识。
 - **手机免装 App**：电脑启动服务，手机扫码即可在浏览器打开；配对二维码携带随机令牌，支持 PWA「添加到主屏幕」。
@@ -44,7 +51,7 @@ LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照�
 
 旧版 Python/PyQt 实现保留在 [v0.2.2](../../releases/tag/v0.2.2)。
 
-## 快速上手 (Quick Start)
+## 快速开始
 
 需要 Windows 10/11、[.NET 10 SDK](https://dotnet.microsoft.com/download) 和 WebView2 运行时（Windows 11 已自带）。
 
@@ -69,6 +76,6 @@ pwsh -File .\build.ps1
 
 版本更新记录见 [CHANGELOG.md](CHANGELOG.md)。
 
-## 开源协议 (License)
+## 开源协议
 
 本项目采用 [MIT 许可证](LICENSE)。
