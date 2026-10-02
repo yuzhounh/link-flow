@@ -10,7 +10,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-f59e0b.svg" alt="License: MIT"></a>
 </p>
 
-LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照片、视频、PDF、ZIP，但不依赖微信/QQ，零外部云端，局域网极速直连，手机免装 App 扫码即用。当前版本为 **v0.3.0**（Windows 原生实现）。
+LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照片、视频、PDF、ZIP，但不依赖微信/QQ，零外部云端，局域网极速直连，手机免装 App 扫码即用。当前版本为 **v0.3.1**（Windows 原生实现）。
 
 <p align="center">
   <img src="screenshots/ss_1.png" width="800" alt="LinkFlow 界面截图" />
@@ -46,7 +46,9 @@ LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照�
 
 ## 快速上手 (Quick Start)
 
-需要 Windows 10/11、[.NET 10 SDK](https://dotnet.microsoft.com/download) 和 WebView2 运行时（Windows 11 已自带）。
+可下载 [Windows x64 便携包](../../releases/latest)，解压后运行 `LinkFlow.exe`。便携包需要 .NET 10 Desktop Runtime、ASP.NET Core Runtime（均为 x64）和 WebView2 运行时。升级前退出旧版，将新程序和 `static/` 文件覆盖到原目录，保留原有 `data/`，消息、文件和手机配对会继续保留。
+
+从源码编译需要 Windows 10/11、[.NET 10 SDK](https://dotnet.microsoft.com/download) 和 WebView2 运行时（Windows 11 已自带）。
 
 在项目目录用 PowerShell 7 运行：
 
@@ -68,6 +70,8 @@ pwsh -File .\build.ps1
 首次配对后，令牌会保存在手机浏览器的本地存储中。服务重启后令牌保持不变；如需重新配对，可删除 `data/config.json` 后重启 LinkFlow。
 
 版本更新记录见 [CHANGELOG.md](CHANGELOG.md)。
+
+上传回滚回归测试：`dotnet run --project tests/UploadRegression/UploadRegression.csproj -c Release`。测试在临时目录创建 SQLite 数据库，并主动拒绝插入；不启动窗口或网络监听，不读取已有 `data/`，也不操作剪贴板。
 
 ## 开源协议 (License)
 

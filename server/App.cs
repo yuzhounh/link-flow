@@ -493,6 +493,7 @@ internal sealed class LinkFlowServer
 
         string fileName = SafeFileName(rawName);
         Dictionary<string, object?> record;
+        string? movedPath = null;
         try
         {
             lock (_dataLock)
@@ -516,13 +517,16 @@ internal sealed class LinkFlowServer
                     }
                 }
 
-                File.Move(tempPath, Path.Combine(targetDir, safeName));
+                string targetPath = Path.Combine(targetDir, safeName);
+                File.Move(tempPath, targetPath);
+                movedPath = targetPath; // Only this request's successful move may be rolled back.
                 record = NewRecord(sender, "file", note.Trim(), safeName, $"{month}/{safeName}", size, GuessMime(fileName));
                 _db.Insert(record);
             }
         }
         catch
         {
+            DeleteQuietly(movedPath);
             DeleteQuietly(tempPath);
             throw;
         }
