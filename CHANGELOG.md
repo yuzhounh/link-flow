@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 - 2026-10-03
+
+- Roll back only the file moved by the current upload when database registration fails. Existing files with the same name are preserved, and retrying does not leave an orphan from the failed attempt.
+- Add an offline regression runner using the real upload handler and an isolated SQLite database: successful upload, rejected insert, same-name collision and retry.
+- Existing messages, file layout and pairing configuration are unchanged.
+
 ## 0.3.0 - 2026-09-27
 
 Rewritten as a native Windows application. The web UI (`static/`) and the data layout (`data/`) are unchanged, so existing messages, files and phone pairings keep working.
