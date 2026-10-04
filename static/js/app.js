@@ -244,7 +244,7 @@
           appendLiveMessage(msg);
           updateHistoryBannerCount();
         } else {
-          showToast(`收到来自${msg.sender === 'phone' ? '📱' : '💻'} ${senderLabel(msg)}的新消息，点击「返回实时」查看`);
+          showToast(`收到来自${msg.device_kind ? (msg.device_kind === 'computer' ? '💻' : '📱') : (msg.sender === 'phone' ? '📱' : '💻')} ${senderLabel(msg)}的新消息，点击「返回实时」查看`);
         }
       } else {
         appendLiveMessage(msg);
@@ -478,7 +478,9 @@
     // Avatar
     const avatar = document.createElement('div');
     avatar.className = 'sender-avatar';
-    avatar.textContent = (msg.sender === 'phone') ? '📱' : '💻';
+    // Phones and tablets get a phone icon, computers (including a second PC) a laptop.
+    const isComputer = msg.device_kind ? msg.device_kind === 'computer' : msg.sender !== 'phone';
+    avatar.textContent = isComputer ? '💻' : '📱';
 
     // Body container
     const bodyWrap = document.createElement('div');
@@ -640,6 +642,7 @@
         type: 'text',
         sender: currentDevice(),
         device: getDeviceName(),
+        kind: isMobile ? 'mobile' : 'computer',
         content: text,
         timestamp: Date.now()
       }));
@@ -702,6 +705,7 @@
       formData.append('file', file);
       formData.append('sender', currentDevice());
       formData.append('device', getDeviceName());
+      formData.append('kind', isMobile ? 'mobile' : 'computer');
 
       try {
         const res = await apiFetch('/api/upload', {
