@@ -35,6 +35,7 @@ internal interface IHostBridge
     Task<string> GetClipboardText();
     Task<bool> SetClipboardFile(string path);
     void RevealInExplorer(string path);
+    void OpenFile(string path);
     bool Wake();
     void RequestShutdown();
 }
@@ -270,6 +271,33 @@ internal sealed class LinkFlowServer
 
     private static string GuessMime(string fileName) =>
         MimeTypes.TryGetContentType(fileName, out var type) ? type : "application/octet-stream";
+
+    // How uploaded files are served / opened. Keep PreviewExts in sync with static/js/app.js.
+    // Images, PDF, video and audio render in the browser as-is.
+    private static readonly HashSet<string> MediaPreviewExts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico", ".avif",
+        ".pdf", ".mp4", ".webm", ".mov", ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a",
+    };
+
+    // Text-like files are served as plain text (UTF-8). HTML/SVG/XML are included on purpose:
+    // rendering them would run uploaded scripts on the app's own origin.
+    private static readonly HashSet<string> TextPreviewExts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".log", ".ini", ".cfg", ".conf", ".toml",
+        ".yml", ".yaml", ".xml", ".html", ".htm", ".svg", ".css", ".js", ".ts", ".py", ".java", ".c",
+        ".cpp", ".h", ".cs", ".go", ".rs", ".sql", ".tex", ".bib", ".r",
+    };
+
+    // Opened with the system default program on the PC. Anything else (scripts, executables,
+    // unknown types) is only revealed in Explorer, never launched.
+    private static readonly HashSet<string> SystemOpenExts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".doc", ".docx", ".dot", ".dotx", ".rtf", ".odt", ".xls", ".xlsx", ".xlsm", ".ods",
+        ".ppt", ".pptx", ".odp", ".key", ".pages", ".numbers", ".epub",
+        ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",
+        ".heic", ".tif", ".tiff", ".mkv", ".avi", ".flv", ".wmv", ".wma",
+    };
 
     private static string? ManagedPath(string baseDir, string? relative)
     {
@@ -611,8 +639,12 @@ internal sealed class LinkFlowServer
         string? fullPath = ManagedPath(_paths.FilesDir, filePath);
         if (fullPath != null && (File.Exists(fullPath) || Directory.Exists(fullPath)))
         {
-            _host.RevealInExplorer(fullPath);
-            await WriteJson(ctx, new { status = "ok", path = fullPath });
+            // mode "open": launch with the default program, but only for known-safe types.
+            bool open = GetString(body, "mode") == "open" && File.Exists(fullPath)
+                && SystemOpenExts.Contains(Path.GetExtension(fullPath));
+            if (open) _host.OpenFile(fullPath);
+            else _host.RevealInExplorer(fullPath);
+            await WriteJson(ctx, new { status = "ok", action = open ? "opened" : "revealed", path = fullPath });
         }
         else
         {
@@ -715,7 +747,21 @@ internal sealed class LinkFlowServer
             await WriteJson(ctx, new { error = "Not Found" }, 404);
             return;
         }
-        await TypedResults.PhysicalFile(fullPath, GuessMime(fullPath), enableRangeProcessing: true).ExecuteAsync(ctx);
+        string ext = Path.GetExtension(fullPath);
+        if (MediaPreviewExts.Contains(ext))
+        {
+            await TypedResults.PhysicalFile(fullPath, GuessMime(fullPath), enableRangeProcessing: true).ExecuteAsync(ctx);
+        }
+        else if (TextPreviewExts.Contains(ext))
+        {
+            await TypedResults.PhysicalFile(fullPath, "text/plain; charset=utf-8", enableRangeProcessing: true).ExecuteAsync(ctx);
+        }
+        else
+        {
+            // Everything else downloads instead of being rendered or run by the browser.
+            await TypedResults.PhysicalFile(fullPath, GuessMime(fullPath),
+                fileDownloadName: Path.GetFileName(fullPath), enableRangeProcessing: true).ExecuteAsync(ctx);
+        }
     }
 
     // ------------------------------------------------------------------ WebSocket

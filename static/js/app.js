@@ -1,7 +1,9 @@
 // LinkFlow Client Application
 (function() {
   // 1. Device detection
-  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  // iPadOS 13+ reports a Macintosh UA; tell it apart from a real Mac by touch support
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+    (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   const currentDevice = isMobile ? 'phone' : 'pc';
 
   if (isMobile) {
@@ -45,6 +47,14 @@
   let allMessages = [];
   let currentViewMonth = null;
 
+  // Live view loads the newest PAGE_SIZE messages; older ones are pulled in when scrolling up.
+  const PAGE_SIZE = 30;
+  const SEARCH_LIMIT = 200;
+  let hasMoreOlder = false;
+  let loadingOlder = false;
+  let searchSeq = 0;
+  let searchTimer = null;
+
   // DOM elements
   const chatHistory = document.getElementById('chat-history');
   const chatInputBox = document.getElementById('chat-input-box');
@@ -57,11 +67,16 @@
 
   // Month & History Banner DOM
   const openCalendarBtn = document.getElementById('open-calendar-btn');
-  const monthModal = document.getElementById('month-modal');
-  const closeMonthModal = document.getElementById('close-month-modal');
-  const monthList = document.getElementById('month-list');
   const historyBanner = document.getElementById('history-banner');
-  const historyMonthLabel = document.getElementById('history-month-label');
+  const monthYearDd = document.getElementById('month-year-dd');
+  const monthYearBtn = document.getElementById('month-year-btn');
+  const monthYearList = document.getElementById('month-year-list');
+  const monthMonthDd = document.getElementById('month-month-dd');
+  const monthMonthBtn = document.getElementById('month-month-btn');
+  const monthMonthList = document.getElementById('month-month-list');
+  const monthPrevBtn = document.getElementById('month-prev-btn');
+  const monthNextBtn = document.getElementById('month-next-btn');
+  const monthCurrentBtn = document.getElementById('month-current-btn');
   const historyBannerCount = document.getElementById('history-banner-count');
   const exitHistoryBtn = document.getElementById('exit-history-btn');
 
@@ -179,15 +194,13 @@
       if (currentViewMonth) {
         const msgMonth = getLocalMonthString(msg.timestamp);
         if (msgMonth === currentViewMonth) {
-          allMessages.push(msg);
-          appendMessageToUI(msg, true);
+          appendLiveMessage(msg);
           updateHistoryBannerCount();
         } else {
           showToast(`收到来自${msg.sender === 'phone' ? '📱 手机' : '💻 电脑'}的新消息，点击「返回实时」查看`);
         }
       } else {
-        allMessages.push(msg);
-        appendMessageToUI(msg, true);
+        appendLiveMessage(msg);
       }
     } else if (data.type === 'message_deleted') {
       const row = document.getElementById(`msg-${data.id}`);
@@ -197,6 +210,7 @@
     } else if (data.type === 'messages_cleared') {
       chatHistory.innerHTML = '';
       allMessages = [];
+      hasMoreOlder = false;
       if (currentViewMonth) exitHistoryMode();
       showToast('聊天记录已清空');
     } else if (data.type === 'wake_tab') {
@@ -210,7 +224,7 @@
   async function loadInitialData() {
     try {
       const [msgRes, infoRes] = await Promise.all([
-        apiFetch('/api/messages?limit=100'),
+        apiFetch(`/api/messages?limit=${PAGE_SIZE}`),
         apiFetch('/api/system/info')
       ]);
 
@@ -221,8 +235,7 @@
 
       const msgData = await msgRes.json();
       if (msgData.status === 'ok') {
-        allMessages = msgData.messages;
-        renderMessages(allMessages);
+        applyLiveMessages(msgData.messages);
       }
 
       const infoData = await infoRes.json();
@@ -246,10 +259,50 @@
         updateStorageStats(infoData.stats);
         setupIpSelector();
       }
+      fillIfShort();
     } catch (e) {
       console.error('Failed to load initial data', e);
     }
   }
+
+  function applyLiveMessages(messages) {
+    allMessages = messages || [];
+    hasMoreOlder = allMessages.length >= PAGE_SIZE;
+    renderMessages(allMessages);
+  }
+
+  // Prepends the next older page, keeping the viewport where it was.
+  async function loadOlderMessages() {
+    if (loadingOlder || currentViewMonth || !hasMoreOlder || allMessages.length === 0) return false;
+    loadingOlder = true;
+    try {
+      const beforeTs = allMessages[0].timestamp;
+      const res = await apiFetch(`/api/messages?limit=${PAGE_SIZE}&before_ts=${encodeURIComponent(beforeTs)}`);
+      const data = await res.json();
+      if (data.status !== 'ok' || currentViewMonth) return false;
+      const older = data.messages || [];
+      hasMoreOlder = older.length >= PAGE_SIZE;
+      allMessages = older.concat(allMessages);
+      renderMessages(allMessages, true);
+      return older.length > 0;
+    } catch (e) {
+      console.error('Failed to load older messages', e);
+      return false;
+    } finally {
+      loadingOlder = false;
+    }
+  }
+
+  // A short page may not fill the screen, so there would be nothing to scroll up from.
+  async function fillIfShort() {
+    while (!currentViewMonth && hasMoreOlder && chatHistory.scrollHeight <= chatHistory.clientHeight + 40) {
+      if (!(await loadOlderMessages())) break;
+    }
+  }
+
+  chatHistory.addEventListener('scroll', () => {
+    if (chatHistory.scrollTop < 80 && !searchInput.value.trim()) loadOlderMessages();
+  }, { passive: true });
 
   function updateStorageStats(stats) {
     if (!stats || !storageStatsText) return;
@@ -274,9 +327,32 @@
     return isToday ? '今天' : `${month}月${date}日`;
   }
 
-  function renderMessages(messages) {
+  // Live-appended messages need a date divider too when the day changes
+  function appendLiveMessage(msg) {
+    const prev = allMessages[allMessages.length - 1];
+    allMessages.push(msg);
+    if (!prev || new Date(prev.timestamp).toDateString() !== new Date(msg.timestamp).toDateString()) {
+      const divider = document.createElement('div');
+      divider.className = 'timeline-date-divider';
+      divider.textContent = formatDateHeader(msg.timestamp);
+      chatHistory.appendChild(divider);
+    }
+    appendMessageToUI(msg, true);
+  }
+
+  function renderMessages(messages, keepScroll = false) {
+    const prevHeight = chatHistory.scrollHeight;
+    const prevTop = chatHistory.scrollTop;
     chatHistory.innerHTML = '';
     let lastDate = '';
+
+    // Live view with everything loaded (not a search result or a single month)
+    if (messages === allMessages && !currentViewMonth && !hasMoreOlder && messages.length > 0) {
+      const hint = document.createElement('div');
+      hint.className = 'timeline-date-divider timeline-top-hint';
+      hint.textContent = '没有更早的记录了';
+      chatHistory.appendChild(hint);
+    }
 
     messages.forEach(msg => {
       const dateStr = formatDateHeader(msg.timestamp);
@@ -290,7 +366,12 @@
       appendMessageToUI(msg, false);
     });
 
-    scrollToBottom();
+    if (keepScroll) {
+      // #chat-history has scroll-behavior: smooth; restoring the position must not animate
+      chatHistory.scrollTo({ top: prevTop + chatHistory.scrollHeight - prevHeight, behavior: 'instant' });
+    } else {
+      scrollToBottom();
+    }
   }
 
   function formatFileSize(bytes) {
@@ -422,6 +503,13 @@
       if (isHost) {
         const btn = bubble.querySelector('.open-folder-btn');
         if (btn) btn.onclick = () => revealInFolder(msg.id);
+        // Non-previewable files: let the PC open them (or locate them), not the browser.
+        if (!isBrowserPreviewable(fileExtWithDot)) {
+          bubble.querySelector('a.file-name').addEventListener('click', (e) => {
+            e.preventDefault();
+            openOnHost(msg.id);
+          });
+        }
       }
     }
 
@@ -749,16 +837,37 @@
     document.body.removeChild(a);
   }
 
-  async function revealInFolder(msgId) {
+  // Keep in sync with MediaPreviewExts / TextPreviewExts in server/App.cs
+  const PREVIEW_EXTS = new Set([
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.ico', '.avif',
+    '.pdf', '.mp4', '.webm', '.mov', '.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a',
+    '.txt', '.md', '.markdown', '.csv', '.tsv', '.json', '.log', '.ini', '.cfg', '.conf', '.toml',
+    '.yml', '.yaml', '.xml', '.html', '.htm', '.svg', '.css', '.js', '.ts', '.py', '.java', '.c',
+    '.cpp', '.h', '.cs', '.go', '.rs', '.sql', '.tex', '.bib', '.r'
+  ]);
+
+  function isBrowserPreviewable(extWithDot) {
+    return PREVIEW_EXTS.has((extWithDot || '').toLowerCase());
+  }
+
+  function openOnHost(msgId) {
+    return revealInFolder(msgId, 'open');
+  }
+
+  async function revealInFolder(msgId, mode) {
     try {
       const res = await apiFetch('/api/system/open-file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: msgId })
+        body: JSON.stringify({ id: msgId, mode })
       });
       const data = await res.json();
       if (data.status === 'ok') {
-        showToast('已在资源管理器中定位');
+        if (mode === 'open') {
+          showToast(data.action === 'opened' ? '已用默认程序打开' : '此类型不会直接打开，已在资源管理器中定位');
+        } else {
+          showToast('已在资源管理器中定位');
+        }
       } else {
         showToast('文件未找到或已被移除');
       }
@@ -857,7 +966,7 @@
     copyToClipboard(qrUrlText.textContent);
   });
 
-  // 10. Month Browsing & Calendar Modal
+  // 10. Month Browsing (toolbar)
   function getLocalMonthString(timestamp) {
     const d = new Date(timestamp);
     const year = d.getFullYear();
@@ -865,134 +974,142 @@
     return `${year}-${month}`;
   }
 
-  function formatMonthLabel(monthStr) {
-    if (!monthStr || !monthStr.includes('-')) return monthStr || '';
-    const [y, m] = monthStr.split('-');
-    return `${y}年${parseInt(m, 10)}月`;
-  }
-
-  function formatBytes(bytes) {
-    if (!bytes || bytes <= 0) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let size = bytes;
-    let i = 0;
-    while (size >= 1024 && i < units.length - 1) {
-      size /= 1024;
-      i++;
-    }
-    return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
-  }
-
   function updateHistoryBannerCount() {
     if (historyBannerCount) {
-      historyBannerCount.textContent = `共 ${allMessages.length} 条记录`;
+      historyBannerCount.textContent = `共 ${allMessages.length} 条`;
     }
   }
 
-  async function loadMonthList() {
-    if (!monthList) return;
-    monthList.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-sub);font-size:13px;">正在加载月份数据...</div>';
+  // Months offered by the banner navigator: those with records plus the current month, newest first
+  let monthsList = [];
+  let monthCounts = {};           // 'YYYY-MM' -> number of records
+  let monthSeq = 0;
+
+  async function refreshMonthsList() {
     try {
       const res = await apiFetch('/api/months');
       const data = await res.json();
-      if (data.status !== 'ok') {
-        monthList.innerHTML = '<div class="month-empty-state">获取月份失败</div>';
-        return;
+      if (data.status === 'ok') {
+        monthsList = (data.months || []).map(m => m.month);
+        monthCounts = Object.fromEntries((data.months || []).map(m => [m.month, m.count]));
       }
-
-      const months = data.months || [];
-      let html = '';
-
-      // Realtime latest messages item at top
-      const isRealtime = currentViewMonth === null;
-      html += `
-        <div class="month-item ${isRealtime ? 'active' : ''}" data-month="">
-          <div class="month-item-info">
-            <div class="month-item-title">
-              <span>⚡ 实时最新消息</span>
-              ${isRealtime ? '<span style="font-size:11px;color:var(--primary);font-weight:normal;">(当前)</span>' : ''}
-            </div>
-            <div class="month-item-meta">显示最近动态与持续同步</div>
-          </div>
-          <span class="month-item-badge">实时</span>
-        </div>
-      `;
-
-      if (months.length === 0) {
-        html += '<div class="month-empty-state">暂无历史月份记录</div>';
-      } else {
-        months.forEach(m => {
-          const isCurrent = currentViewMonth === m.month;
-          html += `
-            <div class="month-item ${isCurrent ? 'active' : ''}" data-month="${m.month}">
-              <div class="month-item-info">
-                <div class="month-item-title">
-                  <span>📅 ${formatMonthLabel(m.month)}</span>
-                  ${isCurrent ? '<span style="font-size:11px;color:var(--primary);font-weight:normal;">(正在浏览)</span>' : ''}
-                </div>
-                <div class="month-item-meta">${m.count} 条记录 · 累计文件 ${formatBytes(m.file_size)}</div>
-              </div>
-              <span class="month-item-badge">${m.count} 条</span>
-            </div>
-          `;
-        });
-      }
-
-      monthList.innerHTML = html;
-
-      // Click binding
-      monthList.querySelectorAll('.month-item').forEach(item => {
-        item.addEventListener('click', () => {
-          const targetMonth = item.getAttribute('data-month');
-          if (!targetMonth) {
-            exitHistoryMode();
-            if (monthModal) monthModal.classList.remove('open');
-          } else {
-            selectMonth(targetMonth);
-          }
-        });
-      });
-    } catch (err) {
-      console.error('Failed to load months', err);
-      monthList.innerHTML = '<div class="month-empty-state">加载失败，请检查网络</div>';
+    } catch (e) {
+      console.error('Failed to refresh months', e);
     }
+    const cur = getLocalMonthString(Date.now());
+    if (!monthsList.includes(cur)) monthsList.push(cur);
+    monthsList.sort().reverse();
+  }
+
+  function monthDdItem(value, label, count, selected) {
+    return `<button type="button" class="month-dd-item${selected ? ' selected' : ''}" data-value="${value}">` +
+      `<span class="month-dd-label">${label}</span><span class="month-dd-count">${count} 条</span></button>`;
+  }
+
+  function renderMonthNav(monthStr) {
+    if (!monthYearBtn || !monthMonthBtn) return;
+    const year = monthStr.slice(0, 4);
+    const years = [...new Set(monthsList.map(m => m.slice(0, 4)))];
+    const yearCount = y => monthsList.filter(m => m.startsWith(`${y}-`)).reduce((n, m) => n + (monthCounts[m] || 0), 0);
+    monthYearBtn.textContent = `${year}年`;
+    monthYearList.innerHTML = years.map(y => monthDdItem(y, `${y}年`, yearCount(y), y === year)).join('');
+    monthMonthBtn.textContent = `${parseInt(monthStr.slice(5), 10)}月`;
+    monthMonthList.innerHTML = monthsList
+      .filter(m => m.startsWith(`${year}-`))
+      .map(m => monthDdItem(m, `${parseInt(m.slice(5), 10)}月`, monthCounts[m] || 0, m === monthStr)).join('');
+    const idx = monthsList.indexOf(monthStr);
+    monthPrevBtn.disabled = idx < 0 || idx >= monthsList.length - 1;
+    monthNextBtn.disabled = idx <= 0;
+    monthCurrentBtn.disabled = monthStr === getLocalMonthString(Date.now());
+  }
+
+  function closeMonthDropdowns() {
+    monthYearDd.classList.remove('open');
+    monthMonthDd.classList.remove('open');
+  }
+
+  function bindMonthDropdown(dd, btn, list, onPick) {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const willOpen = !dd.classList.contains('open');
+      closeMonthDropdowns();
+      if (willOpen) {
+        dd.classList.add('open');
+        const sel = list.querySelector('.selected');
+        if (sel) sel.scrollIntoView({ block: 'nearest' });
+      }
+    });
+    list.addEventListener('click', (e) => {
+      const item = e.target.closest('.month-dd-item');
+      if (!item) return;
+      closeMonthDropdowns();
+      onPick(item.dataset.value);
+    });
+  }
+
+  if (monthYearBtn) {
+    bindMonthDropdown(monthYearDd, monthYearBtn, monthYearList, (year) => {
+      const target = monthsList.find(m => m.startsWith(`${year}-`));
+      if (target) selectMonth(target);
+    });
+    bindMonthDropdown(monthMonthDd, monthMonthBtn, monthMonthList, selectMonth);
+    document.addEventListener('click', closeMonthDropdowns);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMonthDropdowns(); });
+    monthPrevBtn.addEventListener('click', () => {
+      const i = monthsList.indexOf(currentViewMonth);
+      if (i >= 0 && i < monthsList.length - 1) selectMonth(monthsList[i + 1]);
+    });
+    monthNextBtn.addEventListener('click', () => {
+      const i = monthsList.indexOf(currentViewMonth);
+      if (i > 0) selectMonth(monthsList[i - 1]);
+    });
+    monthCurrentBtn.addEventListener('click', () => selectMonth(getLocalMonthString(Date.now())));
   }
 
   async function selectMonth(monthStr) {
-    if (monthModal) monthModal.classList.remove('open');
-    showToast(`正在载入 ${formatMonthLabel(monthStr)} 记录...`);
+    const seq = ++monthSeq;
     try {
-      const res = await apiFetch(`/api/messages?month=${encodeURIComponent(monthStr)}`);
+      const [res] = await Promise.all([
+        apiFetch(`/api/messages?month=${encodeURIComponent(monthStr)}`),
+        refreshMonthsList()
+      ]);
       const data = await res.json();
+      if (seq !== monthSeq) return;
       if (data.status === 'ok') {
         currentViewMonth = monthStr;
         allMessages = data.messages || [];
+        resetSearchText();
         renderMessages(allMessages);
-        if (historyMonthLabel) historyMonthLabel.textContent = formatMonthLabel(monthStr);
+        updateToolbarState();
+        renderMonthNav(monthStr);
         updateHistoryBannerCount();
         if (historyBanner) historyBanner.style.display = 'flex';
-        showToast(`已切换至 ${formatMonthLabel(monthStr)}（共 ${allMessages.length} 条记录）`);
       } else {
         showToast('获取该月记录失败');
+        if (currentViewMonth) renderMonthNav(currentViewMonth);
       }
     } catch (err) {
       console.error('Failed to select month', err);
       showToast('载入失败，请重试');
+      if (currentViewMonth) renderMonthNav(currentViewMonth);
     }
   }
 
   async function exitHistoryMode() {
     if (currentViewMonth === null) return;
+    monthSeq++;
     currentViewMonth = null;
+    updateToolbarState();
     if (historyBanner) historyBanner.style.display = 'none';
     showToast('正在切回实时消息...');
     try {
-      const res = await apiFetch('/api/messages?limit=100');
+      const res = await apiFetch(`/api/messages?limit=${PAGE_SIZE}`);
       const data = await res.json();
       if (data.status === 'ok') {
-        allMessages = data.messages || [];
-        renderMessages(allMessages);
+        resetSearchText();
+        applyLiveMessages(data.messages);
         showToast('已切回实时最新消息');
+        fillIfShort();
       }
     } catch (err) {
       console.error('Failed to exit history mode', err);
@@ -1000,16 +1117,27 @@
   }
 
   if (openCalendarBtn) {
+    // Opens the month toolbar on the current month; while it is open, clicking again goes back to live
     openCalendarBtn.addEventListener('click', () => {
-      if (monthModal) monthModal.classList.add('open');
-      loadMonthList();
+      if (currentViewMonth) {
+        exitHistoryMode();
+        return;
+      }
+      selectMonth(getLocalMonthString(Date.now()));
     });
   }
 
-  if (closeMonthModal) {
-    closeMonthModal.addEventListener('click', () => {
-      if (monthModal) monthModal.classList.remove('open');
-    });
+  // Highlights the header toggle buttons while their mode is on
+  function updateToolbarState() {
+    if (openCalendarBtn) openCalendarBtn.classList.toggle('active', !!currentViewMonth);
+    if (toggleSearchBtn) toggleSearchBtn.classList.toggle('active', searchBar.classList.contains('active'));
+  }
+
+  // Switching between live view and a month drops the old query (its results are gone)
+  function resetSearchText() {
+    searchInput.value = '';
+    searchSeq++;
+    clearTimeout(searchTimer);
   }
 
   if (exitHistoryBtn) {
@@ -1019,7 +1147,6 @@
   // Close modals on clicking outside mask
   window.addEventListener('click', (e) => {
     if (qrModal && e.target === qrModal) qrModal.classList.remove('open');
-    if (monthModal && e.target === monthModal) monthModal.classList.remove('open');
     if (settingsModal && e.target === settingsModal) settingsModal.classList.remove('open');
   });
 
@@ -1077,34 +1204,56 @@
   });
 
   // 13. Search Filtering
+  // The search bar sits above the timeline in the layout. Keep the messages at the bottom where
+  // they are when it opens/closes, so it looks like the bar covers the top instead of pushing content.
+  function setSearchBarOpen(open) {
+    const before = chatHistory.clientHeight;
+    searchBar.classList.toggle('active', open);
+    const delta = before - chatHistory.clientHeight;
+    if (delta) chatHistory.scrollTo({ top: chatHistory.scrollTop + delta, behavior: 'instant' });
+  }
+
+  function closeSearch() {
+    setSearchBarOpen(false);
+    searchInput.value = '';
+    searchSeq++;
+    clearTimeout(searchTimer);
+    renderMessages(allMessages);
+    updateToolbarState();
+  }
+
   toggleSearchBtn.addEventListener('click', () => {
-    searchBar.classList.toggle('active');
     if (searchBar.classList.contains('active')) {
-      searchInput.focus();
+      closeSearch();
     } else {
-      searchInput.value = '';
-      renderMessages(allMessages);
+      setSearchBarOpen(true);
+      searchInput.focus();
+      updateToolbarState();
     }
   });
 
-  closeSearchBtn.addEventListener('click', () => {
-    searchBar.classList.remove('active');
-    searchInput.value = '';
-    renderMessages(allMessages);
-  });
+  closeSearchBtn.addEventListener('click', closeSearch);
 
+  // Search runs on the server so it covers records that are not loaded in the timeline
   searchInput.addEventListener('input', (e) => {
-    const keyword = e.target.value.trim().toLowerCase();
+    const keyword = e.target.value.trim();
+    const seq = ++searchSeq;
+    clearTimeout(searchTimer);
     if (!keyword) {
       renderMessages(allMessages);
       return;
     }
-    const filtered = allMessages.filter(msg => {
-      const c = (msg.content || '').toLowerCase();
-      const fn = (msg.file_name || '').toLowerCase();
-      return c.includes(keyword) || fn.includes(keyword);
-    });
-    renderMessages(filtered);
+    searchTimer = setTimeout(async () => {
+      try {
+        const monthArg = currentViewMonth ? `&month=${encodeURIComponent(currentViewMonth)}` : '';
+        const res = await apiFetch(`/api/messages?search=${encodeURIComponent(keyword)}&limit=${SEARCH_LIMIT}${monthArg}`);
+        const data = await res.json();
+        if (seq !== searchSeq || data.status !== 'ok') return;
+        renderMessages(data.messages || []);
+      } catch (err) {
+        console.error('Search failed', err);
+      }
+    }, 250);
   });
 
   // 14. Toast helper
