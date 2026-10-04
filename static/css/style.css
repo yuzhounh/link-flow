@@ -723,6 +723,16 @@ header {
   text-overflow: ellipsis;
 }
 
+.file-thumb-link {
+  display: block;
+  text-decoration: none;
+}
+
+.file-thumb-link:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
 .file-ops {
   display: flex;
   align-items: center;

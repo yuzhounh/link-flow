@@ -49,6 +49,11 @@ internal sealed class MessageDb
                     thumb_path TEXT
                 )");
         Execute("CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(timestamp DESC)");
+        // Databases created before compressed copies existed lack this column.
+        if (!Query("PRAGMA table_info(messages)").Any(c => (c["name"] as string) == "thumb_size"))
+            Execute("ALTER TABLE messages ADD COLUMN thumb_size INTEGER DEFAULT 0");
+        if (!Query("PRAGMA table_info(messages)").Any(c => (c["name"] as string) == "device_name"))
+            Execute("ALTER TABLE messages ADD COLUMN device_name TEXT DEFAULT ''");
     }
 
     private SqliteCommand Prepare(SqliteConnection connection, string sql, object?[] args)
@@ -84,10 +89,10 @@ internal sealed class MessageDb
     }
 
     public void Insert(Dictionary<string, object?> m) => Execute(
-        "INSERT INTO messages (id, timestamp, sender, msg_type, content, file_name, file_path, file_size, mime_type, thumb_path) " +
-        "VALUES ($p0, $p1, $p2, $p3, $p4, $p5, $p6, $p7, $p8, $p9)",
+        "INSERT INTO messages (id, timestamp, sender, msg_type, content, file_name, file_path, file_size, mime_type, thumb_path, thumb_size, device_name) " +
+        "VALUES ($p0, $p1, $p2, $p3, $p4, $p5, $p6, $p7, $p8, $p9, $p10, $p11)",
         m["id"], m["timestamp"], m["sender"], m["msg_type"], m["content"], m["file_name"], m["file_path"],
-        m["file_size"], m["mime_type"], m["thumb_path"]);
+        m["file_size"], m["mime_type"], m["thumb_path"], m["thumb_size"], m["device_name"]);
 
     public List<Dictionary<string, object?>> GetMessages(int limit, long? beforeTs, string? search, string? month)
     {

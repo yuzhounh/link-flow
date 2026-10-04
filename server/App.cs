@@ -267,6 +267,15 @@ internal sealed class LinkFlowServer
             ? v.GetString()
             : null;
 
+    /// <summary>Device names come from the client; keep them short and free of control characters.</summary>
+    private static string CleanDeviceName(string? raw)
+    {
+        var sb = new StringBuilder();
+        foreach (char c in raw ?? "") if (!char.IsControl(c)) sb.Append(c);
+        string name = sb.ToString().Trim();
+        return name.Length > 32 ? name.Substring(0, 32) : name;
+    }
+
     private static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     private static string GuessMime(string fileName) =>
@@ -430,6 +439,7 @@ internal sealed class LinkFlowServer
 
         string sender = IsHost(ctx) ? "pc" : "phone";
         string note = Arg(ctx, "note") ?? "";
+        string device = CleanDeviceName(Arg(ctx, "device"));
 
         string? boundary = null;
         if (MediaTypeHeaderValue.TryParse(ctx.Request.ContentType, out var mediaType) &&
@@ -486,6 +496,11 @@ internal sealed class LinkFlowServer
                     }
                     if (tooLarge) break;
                 }
+                else if (!isFile && name == "device")
+                {
+                    using var deviceReader = new StreamReader(section.Body, Encoding.UTF8);
+                    device = CleanDeviceName(await deviceReader.ReadToEndAsync(ctx.RequestAborted));
+                }
                 else if (!isFile && name == "note")
                 {
                     using var noteReader = new StreamReader(section.Body, Encoding.UTF8);
@@ -522,6 +537,9 @@ internal sealed class LinkFlowServer
         string fileName = SafeFileName(rawName);
         Dictionary<string, object?> record;
         string? movedPath = null;
+        string? movedThumb = null;
+        // Phone photos can be several MB; also keep a small JPEG that is handy to paste elsewhere.
+        string? thumbTemp = await Task.Run(() => ImageCompressor.TryCompress(tempPath, fileName, UploadTempDir));
         try
         {
             lock (_dataLock)
@@ -548,13 +566,30 @@ internal sealed class LinkFlowServer
                 string targetPath = Path.Combine(targetDir, safeName);
                 File.Move(tempPath, targetPath);
                 movedPath = targetPath; // Only this request's successful move may be rolled back.
-                record = NewRecord(sender, "file", note.Trim(), safeName, $"{month}/{safeName}", size, GuessMime(fileName));
+                record = NewRecord(sender, "file", note.Trim(), safeName, $"{month}/{safeName}", size, GuessMime(fileName), device);
+
+                if (thumbTemp != null)
+                {
+                    string thumbDir = Path.Combine(_paths.ThumbsDir, month);
+                    Directory.CreateDirectory(thumbDir);
+                    var (stem, _) = SplitExt(safeName);
+                    string thumbName = $"{stem}_compressed.jpg";
+                    for (int n = 2; File.Exists(Path.Combine(thumbDir, thumbName)); n++)
+                        thumbName = $"{stem}_compressed_{n}.jpg";
+                    string thumbPath = Path.Combine(thumbDir, thumbName);
+                    File.Move(thumbTemp, thumbPath);
+                    movedThumb = thumbPath;
+                    record["thumb_path"] = $"{month}/{thumbName}";
+                    record["thumb_size"] = new FileInfo(thumbPath).Length;
+                }
                 _db.Insert(record);
             }
         }
         catch
         {
             DeleteQuietly(movedPath);
+            DeleteQuietly(movedThumb);
+            DeleteQuietly(thumbTemp);
             DeleteQuietly(tempPath);
             throw;
         }
@@ -574,6 +609,7 @@ internal sealed class LinkFlowServer
                 ["version"] = AppInfo.Version,
                 ["lan_ip"] = _lanIp,
                 ["all_ips"] = _allIps,
+                ["host_name"] = Environment.MachineName,
                 ["port"] = Port,
                 ["auto_clipboard"] = _autoClipboard,
                 ["is_host"] = isHost,
@@ -665,14 +701,15 @@ internal sealed class LinkFlowServer
             var body = await ReadJsonBody(ctx);
             string? id = GetString(body, "id");
             var message = id == null ? null : _db.GetById(id);
-            string? filePath = message?.GetValueOrDefault("file_path") as string;
+            bool compressed = GetString(body, "variant") == "compressed";
+            string? filePath = message?.GetValueOrDefault(compressed ? "thumb_path" : "file_path") as string;
             if (message == null || string.IsNullOrEmpty(filePath))
             {
                 await WriteJson(ctx, new { error = "未找到对应的文件记录" }, 404);
                 return;
             }
 
-            string? fullPath = ManagedPath(_paths.FilesDir, filePath);
+            string? fullPath = ManagedPath(compressed ? _paths.ThumbsDir : _paths.FilesDir, filePath);
             if (fullPath == null || !File.Exists(fullPath))
             {
                 await WriteJson(ctx, new { error = "本地磁盘上未找到该物理文件" }, 404);
@@ -680,7 +717,7 @@ internal sealed class LinkFlowServer
             }
 
             if (await _host.SetClipboardFile(fullPath))
-                await WriteJson(ctx, new { status = "ok", path = fullPath, file_name = message.GetValueOrDefault("file_name") as string ?? "" });
+                await WriteJson(ctx, new { status = "ok", path = fullPath, file_name = Path.GetFileName(fullPath) });
             else
                 await WriteJson(ctx, new { error = "Windows 剪贴板被其他应用占用，复制失败，请稍后重试" }, 500);
         }
@@ -881,7 +918,8 @@ internal sealed class LinkFlowServer
                     string content = (GetString(root, "content") ?? "").Trim();
                     if (content.Length == 0) return;
                     string sender = client.IsHost ? "pc" : "phone";
-                    var record = NewRecord(sender, "text", content, "", "", Encoding.UTF8.GetByteCount(content), "text/plain");
+                    var record = NewRecord(sender, "text", content, "", "", Encoding.UTF8.GetByteCount(content), "text/plain",
+                        CleanDeviceName(GetString(root, "device")));
                     lock (_dataLock) _db.Insert(record);
                     if (sender == "phone" && _autoClipboard) _ = _host.SetClipboardText(content);
                     Broadcast(new { type = "new_message", message = record });
@@ -920,7 +958,7 @@ internal sealed class LinkFlowServer
     // ------------------------------------------------------------------ data helpers
 
     private static Dictionary<string, object?> NewRecord(string sender, string msgType, string content,
-        string fileName, string filePath, long fileSize, string mimeType) => new()
+        string fileName, string filePath, long fileSize, string mimeType, string deviceName = "") => new()
     {
         ["id"] = Guid.NewGuid().ToString(),
         ["timestamp"] = NowMs(),
@@ -932,6 +970,8 @@ internal sealed class LinkFlowServer
         ["file_size"] = fileSize,
         ["mime_type"] = mimeType,
         ["thumb_path"] = "",
+        ["thumb_size"] = 0L,
+        ["device_name"] = deviceName,
     };
 
     private void DeleteMessageFiles(Dictionary<string, object?> message)

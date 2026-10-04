@@ -30,6 +30,35 @@
     return fetch(url, { ...options, headers });
   }
 
+  // Device name shown next to this device's messages. Editable in settings, kept in this browser.
+  let hostName = '';
+
+  function guessDeviceName() {
+    const ua = navigator.userAgent || '';
+    if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'iPad';
+    if (/iPhone/.test(ua)) return 'iPhone';
+    const android = ua.match(/Android[^;]*;\s*([^;)]+?)(?:\s+Build|\))/);
+    const model = android && android[1] && android[1] !== 'K' ? android[1].trim() : '';
+    if (/Android/.test(ua)) return model || (/Mobile/.test(ua) ? '安卓手机' : '安卓平板');
+    return isMobile ? '手机' : '';
+  }
+
+  function getDeviceName() {
+    let saved = '';
+    try { saved = localStorage.getItem('linkflow_device_name') || ''; } catch (e) { /* storage unavailable */ }
+    return saved || (isMobile ? guessDeviceName() : hostName);
+  }
+
+  function senderLabel(msg) {
+    return msg.device_name || (msg.sender === 'phone' ? '手机' : '电脑');
+  }
+
+  function protectedThumbUrl(thumbPath, absolute = false) {
+    const base = absolute ? window.location.origin : '';
+    const tokenQuery = authToken ? `?token=${encodeURIComponent(authToken)}` : '';
+    return `${base}/thumbs/${encodeURI(thumbPath || '')}${tokenQuery}`;
+  }
+
   function protectedFileUrl(filePath, absolute = false) {
     const base = absolute ? window.location.origin : '';
     const tokenQuery = authToken ? `?token=${encodeURIComponent(authToken)}` : '';
@@ -95,6 +124,7 @@
   const closeSettingsModal = document.getElementById('close-settings-modal');
   const settingAutoClipboard = document.getElementById('setting-auto-clipboard');
   const settingDarkTheme = document.getElementById('setting-dark-theme');
+  const settingDeviceName = document.getElementById('setting-device-name');
   const clearAllBtn = document.getElementById('clear-all-btn');
   const storageStatsText = document.getElementById('storage-stats-text');
   const appVersionText = document.getElementById('app-version-text');
@@ -141,6 +171,18 @@
     applyTheme(e.target.checked);
     localStorage.setItem('linkflow_theme', e.target.checked ? 'dark' : 'light');
   });
+
+  if (settingDeviceName) {
+    settingDeviceName.addEventListener('change', () => {
+      const name = settingDeviceName.value.trim();
+      try {
+        if (name) localStorage.setItem('linkflow_device_name', name);
+        else localStorage.removeItem('linkflow_device_name');
+      } catch (e) { /* storage unavailable */ }
+      settingDeviceName.value = getDeviceName();
+      showToast('设备名称已更新');
+    });
+  }
 
   // 3. WebSocket Connection
   function connectWebSocket() {
@@ -197,7 +239,7 @@
           appendLiveMessage(msg);
           updateHistoryBannerCount();
         } else {
-          showToast(`收到来自${msg.sender === 'phone' ? '📱 手机' : '💻 电脑'}的新消息，点击「返回实时」查看`);
+          showToast(`收到来自${msg.sender === 'phone' ? '📱' : '💻'} ${senderLabel(msg)}的新消息，点击「返回实时」查看`);
         }
       } else {
         appendLiveMessage(msg);
@@ -245,6 +287,11 @@
         port = infoData.port;
         autoClipboard = infoData.auto_clipboard;
         maxUploadBytes = infoData.max_upload_bytes || maxUploadBytes;
+        hostName = infoData.host_name || '';
+        if (settingDeviceName) {
+          settingDeviceName.value = getDeviceName();
+          settingDeviceName.placeholder = isMobile ? guessDeviceName() : hostName;
+        }
         if (infoData.pairing_token) pairingToken = infoData.pairing_token;
         if (appVersionText && infoData.version) appVersionText.textContent = `LinkFlow v${infoData.version}`;
         if (typeof infoData.is_host === 'boolean') {
@@ -433,7 +480,7 @@
     // Meta header (sender & time)
     const meta = document.createElement('div');
     meta.className = 'message-meta';
-    meta.textContent = `${msg.sender === 'phone' ? '手机' : '电脑'} · ${formatTime(msg.timestamp)}`;
+    meta.textContent = `${senderLabel(msg)} · ${formatTime(msg.timestamp)}`;
     bodyWrap.appendChild(meta);
 
     // Message Bubble Wrapper (contains bubble/card + unified action bar)
@@ -444,14 +491,27 @@
     const actions = document.createElement('div');
     actions.className = 'bubble-actions';
 
+    // Photos keep a small compressed copy: "复制" pastes that one, the original has its own button.
+    const hasThumb = msg.msg_type !== 'text' && !!msg.thumb_path;
     const copyBtn = document.createElement('button');
     copyBtn.className = 'action-btn-mini';
-    copyBtn.innerHTML = '📋 复制';
+    copyBtn.innerHTML = hasThumb ? '📋 复制压缩图' : '📋 复制';
     copyBtn.onclick = (e) => {
       e.stopPropagation();
-      copyMessage(msg);
+      copyMessage(msg, hasThumb);
     };
     actions.appendChild(copyBtn);
+
+    if (hasThumb) {
+      const copyOrigBtn = document.createElement('button');
+      copyOrigBtn.className = 'action-btn-mini';
+      copyOrigBtn.innerHTML = '📋 复制原图';
+      copyOrigBtn.onclick = (e) => {
+        e.stopPropagation();
+        copyMessage(msg, false);
+      };
+      actions.appendChild(copyOrigBtn);
+    }
 
     const isFileMsg = (msg.msg_type !== 'text');
     const delBtn = document.createElement('button');
@@ -494,7 +554,8 @@
         <div class="file-icon-box">${icon}</div>
         <div class="file-info">
           <a class="file-name" href="${protectedFileUrl(msg.file_path)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(msg.file_name || '')}"><span class="file-name-base">${escapeHtml(baseName)}</span><span class="file-name-ext">${escapeHtml(fileExtWithDot)}</span></a>
-          <div class="file-meta">${ext} · ${formatFileSize(msg.file_size)}</div>
+          <div class="file-meta">${ext} · ${formatFileSize(msg.file_size)}${msg.thumb_path ? ' · 原图' : ''}</div>
+          ${msg.thumb_path ? `<a class="file-meta file-thumb-link" href="${protectedThumbUrl(msg.thumb_path)}" target="_blank" rel="noopener noreferrer" title="查看压缩图">压缩图 · ${formatFileSize(msg.thumb_size)}</a>` : ''}
         </div>
         <div class="file-ops">
           ${isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : `<a class="file-op-btn" href="${protectedFileUrl(msg.file_path)}" download="${escapeHtml(msg.file_name || '')}" title="下载保存">⬇️</a>`}
@@ -566,6 +627,7 @@
       ws.send(JSON.stringify({
         type: 'text',
         sender: currentDevice,
+        device: getDeviceName(),
         content: text,
         timestamp: Date.now()
       }));
@@ -627,6 +689,7 @@
       const formData = new FormData();
       formData.append('file', file);
       formData.append('sender', currentDevice);
+      formData.append('device', getDeviceName());
 
       try {
         const res = await apiFetch('/api/upload', {
@@ -757,7 +820,7 @@
     document.body.removeChild(ta);
   }
 
-  async function copyMessage(msg) {
+  async function copyMessage(msg, compressed = false) {
     if (msg.msg_type === 'text') {
       copyToClipboard(msg.content);
       return;
@@ -768,7 +831,7 @@
         const res = await apiFetch('/api/system/copy-file', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: msg.id })
+          body: JSON.stringify({ id: msg.id, variant: compressed ? 'compressed' : 'original' })
         });
         const data = await res.json().catch(() => null);
         if (res.ok && data && data.status === 'ok') {
@@ -781,8 +844,8 @@
         showToast('请求服务失败，请检查服务是否正常运行');
       }
     } else {
-      const fileUrl = protectedFileUrl(msg.file_path, true);
-      const ext = (msg.file_name ? msg.file_name.split('.').pop() : '').toUpperCase();
+      const fileUrl = compressed ? protectedThumbUrl(msg.thumb_path, true) : protectedFileUrl(msg.file_path, true);
+      const ext = (compressed ? 'JPG' : (msg.file_name ? msg.file_name.split('.').pop() : '')).toUpperCase();
       const isImg = ['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'BMP'].includes(ext);
       if (isImg && navigator.clipboard && window.ClipboardItem) {
         try {

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Uploaded photos (JPG/PNG/BMP over 300 KB) also get a compressed JPEG copy (long edge up to 1920 px, quality 80, EXIF rotation applied) stored in `data/thumbs/`. The original is kept unchanged. The file card shows both, and "复制" copies the compressed image while "复制原图" copies the original.
+- Messages now show the sending device's name (for example "iPad" or the PC's name) instead of a generic "手机"/"电脑". Names are guessed automatically and can be changed in settings.
+- Two new nullable-by-default columns (`thumb_size`, `device_name`) are added to existing databases automatically.
+
 ## 0.3.1 - 2026-10-03
 
 - Roll back only the file moved by the current upload when database registration fails. Existing files with the same name are preserved, and retrying does not leave an orphan from the failed attempt.

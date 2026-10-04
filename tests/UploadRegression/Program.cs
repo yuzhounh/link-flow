@@ -38,10 +38,10 @@ try
         using var command = connection.CreateCommand(); command.CommandText = "SELECT COUNT(*) FROM messages";
         return Convert.ToInt32(command.ExecuteScalar());
     }
-    async Task<DefaultHttpContext> Send(string filename, string text, bool fail = false)
+    async Task<DefaultHttpContext> Send(string filename, string text, bool fail = false, byte[]? bytes = null)
     {
         using var form = new MultipartFormDataContent();
-        form.Add(new ByteArrayContent(Encoding.UTF8.GetBytes(text)), "file", filename);
+        form.Add(new ByteArrayContent(bytes ?? Encoding.UTF8.GetBytes(text)), "file", filename);
         using var body = new MemoryStream(await form.ReadAsByteArrayAsync());
         using var services = new ServiceCollection().AddLogging().BuildServiceProvider();
         var context = new DefaultHttpContext { RequestServices = services };
@@ -82,6 +82,32 @@ try
     Check(CountRecords() == 2 && Directory.GetFiles(filesRoot, "*", SearchOption.AllDirectories).Length == 2, "Retry creates exactly one new file and record");
     Check(File.ReadAllText(existing) == "original", "Retry retains original bytes");
     Console.WriteLine("PASS: same-name rollback and successful retry preserve old data");
+
+    // Large photo: original kept, compressed JPEG copy registered; small image: no copy.
+    byte[] Png(int w, int h)
+    {
+        using var bmp = new System.Drawing.Bitmap(w, h);
+        var rnd = new Random(1);
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++)
+            bmp.SetPixel(x, y, System.Drawing.Color.FromArgb(rnd.Next(256), rnd.Next(256), rnd.Next(256)));
+        using var ms = new MemoryStream();
+        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+        return ms.ToArray();
+    }
+    var big = Png(1000, 700);
+    var small = Png(20, 20);
+    var thumbsRoot = Path.Combine(tempRoot, "data", "thumbs");
+    var photo = await Send("photo.png", "", bytes: big);
+    var photoJson = Encoding.UTF8.GetString(((MemoryStream)photo.Response.Body).ToArray());
+    var thumbs = Directory.GetFiles(thumbsRoot, "*", SearchOption.AllDirectories);
+    Check(thumbs.Length == 1 && thumbs[0].EndsWith("photo_compressed.jpg"), "Large photo gets one compressed copy");
+    Check(new FileInfo(thumbs[0]).Length < big.Length, "Compressed copy is smaller than the original");
+    Check(photoJson.Contains("photo_compressed.jpg") && photoJson.Contains("\"thumb_size\""), "Record carries thumb path and size");
+    Check(Directory.GetFiles(filesRoot, "photo.png", SearchOption.AllDirectories).Single().Length > 0 &&
+          new FileInfo(Directory.GetFiles(filesRoot, "photo.png", SearchOption.AllDirectories).Single()).Length == big.Length, "Original photo bytes preserved");
+    await Send("tiny.png", "", bytes: small);
+    Check(Directory.GetFiles(thumbsRoot, "*", SearchOption.AllDirectories).Length == 1, "Small image gets no compressed copy");
+    Console.WriteLine("PASS: photo upload keeps original and adds compressed copy");
 }
 finally
 {
