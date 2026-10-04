@@ -1193,7 +1193,32 @@ body.is-mobile .tool-buttons {
   word-break: break-all;
   color: var(--primary);
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.qr-info-url #qr-url-text {
+  flex: 1;
+  min-width: 0;
   text-align: center;
+}
+
+.qr-copy-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-main);
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.qr-copy-btn:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
 }
 
 .modal-footer {
