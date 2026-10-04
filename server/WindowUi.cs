@@ -13,6 +13,7 @@ namespace LinkFlow;
 internal sealed class MainWindow : Form
 {
     private const string PlacementKey = "window_native";
+    private const string ZoomKey = "zoom_factor";
 
     private readonly AppPaths _paths;
     private readonly string _url;
@@ -102,6 +103,9 @@ internal sealed class MainWindow : Form
                 }
             };
 
+            RestoreZoom();
+            _webView.ZoomFactorChanged += (_, _) => SaveZoom();
+
             core.Navigate(_url);
         }
         catch (Exception ex)
@@ -180,6 +184,38 @@ internal sealed class MainWindow : Form
         if (!Visible || WindowState == FormWindowState.Minimized) return;
         _saveTimer.Stop();
         _saveTimer.Start();
+    }
+
+    private void RestoreZoom()
+    {
+        try
+        {
+            JsonObject config;
+            lock (JsonFile.Lock) config = JsonFile.Read(_paths.ConfigPath);
+            double? zoom = (double?)config[ZoomKey];
+            if (zoom is >= 0.25 and <= 5) _webView.ZoomFactor = zoom.Value;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("LinkFlow.WindowUI", "Failed to restore zoom", ex);
+        }
+    }
+
+    private void SaveZoom()
+    {
+        try
+        {
+            lock (JsonFile.Lock)
+            {
+                var config = JsonFile.Read(_paths.ConfigPath);
+                config[ZoomKey] = Math.Round(_webView.ZoomFactor, 2);
+                JsonFile.Write(_paths.ConfigPath, config);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("LinkFlow.WindowUI", "Failed to save zoom", ex);
+        }
     }
 
     private void RestorePlacement()
