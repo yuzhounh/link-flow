@@ -53,7 +53,7 @@
     if (/Windows/.test(ua)) return 'Windows 电脑';
     if (/Macintosh/.test(ua)) return 'Mac';
     if (/Linux|X11/.test(ua)) return 'Linux 电脑';
-    return isMobile ? '手机' : '电脑';
+    return isMobile ? '移动设备' : '电脑';
   }
 
   function getDeviceName() {
@@ -68,7 +68,7 @@
   }
 
   function senderLabel(msg) {
-    return msg.device_name || (msg.sender === 'phone' ? '手机' : '电脑');
+    return msg.device_name || (msg.sender === 'phone' ? '其他设备' : '电脑');
   }
 
   function protectedThumbUrl(thumbPath, absolute = false) {
