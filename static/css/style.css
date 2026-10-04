@@ -603,9 +603,9 @@ header {
 
 /* Desktop file cards: the actions sit beside the card (on the free side), stacked vertically. */
 .is-desktop .bubble-wrapper:has(.file-card) .bubble-actions {
-  top: 50%;
-  bottom: auto;
-  transform: translateY(-50%);
+  top: 0;
+  bottom: 0; /* same height as the card */
+  box-sizing: border-box;
   flex-direction: column;
   align-items: stretch;
   gap: 2px;
@@ -640,6 +640,7 @@ header {
 
 .is-desktop .bubble-wrapper:has(.file-card) .action-btn-mini {
   justify-content: flex-start;
+  flex: 1;
 }
 
 .action-btn-mini {
@@ -702,16 +703,28 @@ header {
 }
 
 .file-icon-box {
-  width: 34px;
-  height: 34px;
+  width: 40px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
+  gap: 3px;
   background: none;
   flex-shrink: 0;
   line-height: 1;
   user-select: none;
+}
+
+.file-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.file-ext-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-sub);
+  letter-spacing: 0.3px;
 }
 
 .file-info {

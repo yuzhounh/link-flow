@@ -493,26 +493,27 @@
     const actions = document.createElement('div');
     actions.className = 'bubble-actions';
 
-    // Photos keep a small compressed copy: "复制" pastes that one, the original has its own button.
+    // Photos keep a small compressed copy. On the PC the card's round button copies it, and the
+    // side menu offers original / locate / delete; elsewhere the menu offers both copies.
     const hasThumb = msg.msg_type !== 'text' && !!msg.thumb_path;
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'action-btn-mini';
-    copyBtn.innerHTML = hasThumb ? '📋 复制压缩图' : '📋 复制';
-    copyBtn.onclick = (e) => {
-      e.stopPropagation();
-      copyMessage(msg, hasThumb);
-    };
-    actions.appendChild(copyBtn);
-
-    if (hasThumb) {
-      const copyOrigBtn = document.createElement('button');
-      copyOrigBtn.className = 'action-btn-mini';
-      copyOrigBtn.innerHTML = '📋 复制原图';
-      copyOrigBtn.onclick = (e) => {
+    const hostThumb = hasThumb && isHost;
+    const addAction = (label, handler) => {
+      const btn = document.createElement('button');
+      btn.className = 'action-btn-mini';
+      btn.innerHTML = label;
+      btn.onclick = (e) => {
         e.stopPropagation();
-        copyMessage(msg, false);
+        handler();
       };
-      actions.appendChild(copyOrigBtn);
+      actions.appendChild(btn);
+    };
+
+    if (hostThumb) {
+      addAction('📋 复制原图', () => copyMessage(msg, false));
+      addAction('📁 定位', () => revealInFolder(msg.id));
+    } else {
+      addAction(hasThumb ? '📋 复制压缩图' : '📋 复制', () => copyMessage(msg, hasThumb));
+      if (hasThumb) addAction('📋 复制原图', () => copyMessage(msg, false));
     }
 
     const isFileMsg = (msg.msg_type !== 'text');
@@ -553,21 +554,21 @@
       const { baseName, ext: fileExtWithDot } = splitFileName(msg.file_name || 'file');
 
       bubble.innerHTML = `
-        <div class="file-icon-box">${icon}</div>
+        <div class="file-icon-box"><span class="file-icon">${icon}</span><span class="file-ext-label">${escapeHtml(ext)}</span></div>
         <div class="file-info">
           <a class="file-name" href="${protectedFileUrl(msg.file_path)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(msg.file_name || '')}"><span class="file-name-base">${escapeHtml(baseName)}</span><span class="file-name-ext">${escapeHtml(fileExtWithDot)}</span></a>
-          ${msg.thumb_path
-            ? `<div class="file-meta">${ext}</div><div class="file-meta">原图 · ${formatFileSize(msg.file_size)}</div>`
-            : `<div class="file-meta">${ext} · ${formatFileSize(msg.file_size)}</div>`}
+          <div class="file-meta">${msg.thumb_path ? '原图 · ' : ''}${formatFileSize(msg.file_size)}</div>
           ${msg.thumb_path ? `<a class="file-meta file-thumb-link" href="${protectedThumbUrl(msg.thumb_path)}" target="_blank" rel="noopener noreferrer" title="查看压缩图">压缩图 · ${formatFileSize(msg.thumb_size)}</a>` : ''}
         </div>
         <div class="file-ops">
-          ${isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : `<a class="file-op-btn" href="${protectedFileUrl(msg.file_path)}" download="${escapeHtml(msg.file_name || '')}" title="下载保存">⬇️</a>`}
+          ${hostThumb ? `<button class="file-op-btn copy-thumb-btn" title="复制压缩图">📋</button>` : isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : `<a class="file-op-btn" href="${protectedFileUrl(msg.file_path)}" download="${escapeHtml(msg.file_name || '')}" title="下载保存">⬇️</a>`}
         </div>
       `;
       if (isHost) {
         const btn = bubble.querySelector('.open-folder-btn');
         if (btn) btn.onclick = () => revealInFolder(msg.id);
+        const copyThumb = bubble.querySelector('.copy-thumb-btn');
+        if (copyThumb) copyThumb.onclick = () => copyMessage(msg, true);
         // Non-previewable files: let the PC open them (or locate them), not the browser.
         if (!isBrowserPreviewable(fileExtWithDot)) {
           bubble.querySelector('a.file-name').addEventListener('click', (e) => {
