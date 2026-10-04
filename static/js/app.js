@@ -1028,7 +1028,7 @@
       }
     } catch (err) {
       console.error('QR code generation error:', err);
-      container.innerHTML = `<div style="padding:20px;text-align:center;color:#ff4d4f;font-size:12px;">二维码生成异常，请直接在手机浏览器访问:<br><strong style="font-size:14px;color:var(--text-main);">${targetUrl}</strong></div>`;
+      container.innerHTML = `<div style="padding:20px;text-align:center;color:#ff4d4f;font-size:12px;">二维码生成异常，请直接在设备的浏览器中访问:<br><strong style="font-size:14px;color:var(--text-main);">${targetUrl}</strong></div>`;
     }
   }
 
