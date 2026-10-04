@@ -27,6 +27,20 @@ internal static class WinShell
         }
     }
 
+    /// <summary>Opens a file with its default program, like double-clicking it in Explorer.</summary>
+    public static void OpenFile(string path)
+    {
+        try
+        {
+            AllowSetForegroundWindow(ASFW_ANY);
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("LinkFlow", $"Failed to open {path}", ex);
+        }
+    }
+
     /// <summary>Opens Explorer with the file selected (reuses an Explorer window already showing that folder).</summary>
     public static void RevealInExplorer(string path)
     {

@@ -16,6 +16,7 @@ Write-Host '[3/4] Creating desktop shortcut ...'
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'LinkFlow.lnk'))
 $shortcut.TargetPath = $exe
+$shortcut.Arguments = ''
 $shortcut.WorkingDirectory = $dist
 $shortcut.IconLocation = "$exe,0"
 $shortcut.Description = 'LinkFlow'
