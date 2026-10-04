@@ -194,6 +194,14 @@
       </div>
 
       <div style="display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div>
+            <div style="font-size:14px;font-weight:500;">本设备名称</div>
+            <div style="font-size:12px;color:var(--text-sub);">显示在本设备发出的消息上，仅对之后的消息生效</div>
+          </div>
+          <input type="text" id="setting-device-name" maxlength="32" autocomplete="off" style="width:130px;font-size:13px;padding:6px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-main);">
+        </div>
+
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <div>
             <div style="font-size:14px;font-weight:500;">手机文本自动存入 PC 剪贴板</div>
@@ -203,14 +211,6 @@
             <input type="checkbox" id="setting-auto-clipboard" checked>
             <span class="slider"></span>
           </label>
-        </div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-          <div>
-            <div style="font-size:14px;font-weight:500;">本设备名称</div>
-            <div style="font-size:12px;color:var(--text-sub);">显示在本设备发出的消息上，仅对之后的消息生效</div>
-          </div>
-          <input type="text" id="setting-device-name" maxlength="32" autocomplete="off" style="width:130px;font-size:13px;padding:6px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-main);">
         </div>
 
         <div style="display:flex;align-items:center;justify-content:space-between;">
