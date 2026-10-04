@@ -34,6 +34,14 @@
 
   // Device name shown next to this device's messages. Editable in settings, kept in this browser.
   let hostName = '';
+  let hostKind = '';
+
+  // 'mobile' (phone/tablet), 'desktop' or 'computer' (laptop / other computers).
+  // Only the PC running LinkFlow can tell a desktop from a laptop.
+  function deviceKind() {
+    if (isMobile) return 'mobile';
+    return isHost && hostKind === 'desktop' ? 'desktop' : 'computer';
+  }
 
   function guessDeviceName() {
     const ua = navigator.userAgent || '';
@@ -52,6 +60,11 @@
     let saved = '';
     try { saved = localStorage.getItem('linkflow_device_name') || ''; } catch (e) { /* storage unavailable */ }
     return saved || (isHost && hostName ? hostName : guessDeviceName());
+  }
+
+  function deviceIcon(msg) {
+    const kind = msg.device_kind || (msg.sender === 'phone' ? 'mobile' : 'computer');
+    return kind === 'mobile' ? '📱' : kind === 'desktop' ? '🖥️' : '💻';
   }
 
   function senderLabel(msg) {
@@ -244,7 +257,7 @@
           appendLiveMessage(msg);
           updateHistoryBannerCount();
         } else {
-          showToast(`收到来自${msg.device_kind ? (msg.device_kind === 'computer' ? '💻' : '📱') : (msg.sender === 'phone' ? '📱' : '💻')} ${senderLabel(msg)}的新消息，点击「返回实时」查看`);
+          showToast(`收到来自${deviceIcon(msg)} ${senderLabel(msg)}的新消息，点击「返回实时」查看`);
         }
       } else {
         appendLiveMessage(msg);
@@ -293,6 +306,7 @@
         autoClipboard = infoData.auto_clipboard;
         maxUploadBytes = infoData.max_upload_bytes || maxUploadBytes;
         hostName = infoData.host_name || '';
+        hostKind = infoData.host_kind || '';
         if (infoData.pairing_token) pairingToken = infoData.pairing_token;
         if (appVersionText && infoData.version) appVersionText.textContent = `LinkFlow v${infoData.version}`;
         if (typeof infoData.is_host === 'boolean') {
@@ -478,9 +492,8 @@
     // Avatar
     const avatar = document.createElement('div');
     avatar.className = 'sender-avatar';
-    // Phones and tablets get a phone icon, computers (including a second PC) a laptop.
-    const isComputer = msg.device_kind ? msg.device_kind === 'computer' : msg.sender !== 'phone';
-    avatar.textContent = isComputer ? '💻' : '📱';
+    // Phone icon for phones and tablets, desktop or laptop icon for computers.
+    avatar.textContent = deviceIcon(msg);
 
     // Body container
     const bodyWrap = document.createElement('div');
@@ -642,7 +655,7 @@
         type: 'text',
         sender: currentDevice(),
         device: getDeviceName(),
-        kind: isMobile ? 'mobile' : 'computer',
+        kind: deviceKind(),
         content: text,
         timestamp: Date.now()
       }));
@@ -705,7 +718,7 @@
       formData.append('file', file);
       formData.append('sender', currentDevice());
       formData.append('device', getDeviceName());
-      formData.append('kind', isMobile ? 'mobile' : 'computer');
+      formData.append('kind', deviceKind());
 
       try {
         const res = await apiFetch('/api/upload', {

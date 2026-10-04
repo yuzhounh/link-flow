@@ -276,8 +276,13 @@ internal sealed class LinkFlowServer
         return name.Length > 32 ? name.Substring(0, 32) : name;
     }
 
-    /// <summary>"computer" or "mobile" (phone/tablet); anything else is unknown.</summary>
-    private static string CleanDeviceKind(string? raw) => raw?.Trim() is "computer" or "mobile" ? raw.Trim() : "";
+    /// <summary>This PC has no battery: treat it as a desktop, otherwise a laptop.</summary>
+    private static readonly string HostKind =
+        System.Windows.Forms.SystemInformation.PowerStatus.BatteryChargeStatus
+            .HasFlag(System.Windows.Forms.BatteryChargeStatus.NoSystemBattery) ? "desktop" : "laptop";
+
+    /// <summary>"computer", "desktop" or "mobile" (phone/tablet); anything else is unknown.</summary>
+    private static string CleanDeviceKind(string? raw) => raw?.Trim() is "computer" or "desktop" or "mobile" ? raw.Trim() : "";
 
     private static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
@@ -619,6 +624,7 @@ internal sealed class LinkFlowServer
                 ["lan_ip"] = _lanIp,
                 ["all_ips"] = _allIps,
                 ["host_name"] = Environment.MachineName,
+                ["host_kind"] = HostKind,
                 ["port"] = Port,
                 ["auto_clipboard"] = _autoClipboard,
                 ["is_host"] = isHost,
