@@ -601,6 +601,47 @@ header {
   align-items: center;
 }
 
+/* Desktop file cards: the actions sit beside the card (on the free side), stacked vertically. */
+.is-desktop .bubble-wrapper:has(.file-card) .bubble-actions {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.is-desktop .message-row.is-peer-device .bubble-wrapper:has(.file-card) .bubble-actions {
+  left: calc(100% + 8px);
+  right: auto;
+}
+
+.is-desktop .message-row.is-current-device .bubble-wrapper:has(.file-card) .bubble-actions {
+  right: calc(100% + 8px);
+  left: auto;
+}
+
+.is-desktop .bubble-wrapper:has(.file-card) .bubble-actions::after {
+  top: 0;
+  bottom: 0;
+  height: auto;
+  width: 8px;
+}
+
+.is-desktop .message-row.is-peer-device .bubble-wrapper:has(.file-card) .bubble-actions::after {
+  right: 100%;
+  left: auto;
+}
+
+.is-desktop .message-row.is-current-device .bubble-wrapper:has(.file-card) .bubble-actions::after {
+  left: 100%;
+  right: auto;
+}
+
+.is-desktop .bubble-wrapper:has(.file-card) .action-btn-mini {
+  justify-content: flex-start;
+}
+
 .action-btn-mini {
   background: none;
   border: none;
