@@ -417,7 +417,9 @@
       // #chat-history has scroll-behavior: smooth; restoring the position must not animate
       chatHistory.scrollTo({ top: prevTop + chatHistory.scrollHeight - prevHeight, behavior: 'instant' });
     } else {
-      scrollToBottom();
+      // Jump, don't animate: a smooth scroll starting at the top would trip the
+      // "load older messages" handler and get cancelled halfway.
+      chatHistory.scrollTo({ top: chatHistory.scrollHeight, behavior: 'instant' });
     }
   }
 
