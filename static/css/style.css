@@ -1133,7 +1133,10 @@ body.is-mobile .tool-buttons {
   align-items: center;
   justify-content: center;
   padding: 16px;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   backdrop-filter: blur(4px);
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .modal-mask.open {
@@ -1145,12 +1148,17 @@ body.is-mobile .tool-buttons {
   border-radius: var(--radius-lg);
   max-width: 420px;
   width: 100%;
+  max-height: calc(100dvh - 32px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px;
   box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   gap: 16px;
   position: relative;
+  box-sizing: border-box;
 }
 
 .modal-header {
@@ -1170,6 +1178,13 @@ body.is-mobile .tool-buttons {
   font-size: 22px;
   color: var(--text-sub);
   cursor: pointer;
+  min-width: 40px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  flex-shrink: 0;
 }
 
 #qr-canvas-container {
@@ -1522,4 +1537,26 @@ input:checked + .slider:before {
 
 [data-theme="dark"] .dup-btn-secondary:hover {
   background-color: rgba(255, 255, 255, 0.06);
+}
+
+@media (max-height: 520px) {
+  .modal-mask {
+    align-items: flex-start;
+    padding: 8px;
+  }
+  .modal-box {
+    padding: 14px 18px;
+    gap: 10px;
+    max-height: calc(100dvh - 16px);
+    max-height: calc(100vh - 16px);
+  }
+  #qr-canvas-container {
+    width: 150px;
+    height: 150px;
+    padding: 6px;
+  }
+  #qr-canvas-container canvas {
+    max-width: 138px !important;
+    max-height: 138px !important;
+  }
 }
