@@ -216,19 +216,19 @@ internal static class Autostart
 }
 
 /// <summary>
-/// Tray context menu (white, 6px rounded corners, #f2f4f7 hover,
-/// blue check mark on the right), drawn with native GDI text at the monitor's real DPI.
+/// Tray context menu with 14 DIP text, 32 DIP rows, full-width separators and
+/// trailing check marks, drawn with native GDI text at the monitor's real DPI.
 /// </summary>
 internal sealed class TrayMenu : ContextMenuStrip
 {
     internal static readonly Color TextColor = Color.FromArgb(0x1F, 0x23, 0x28);
-    internal static readonly Color HoverColor = Color.FromArgb(0xF2, 0xF4, 0xF7);
+    internal static readonly Color HoverColor = Color.FromArgb(0xF3, 0xF4, 0xF6);
     internal static readonly Color BorderColor = Color.FromArgb(0xDC, 0xE0, 0xE5);
-    internal static readonly Color SeparatorColor = Color.FromArgb(0xEA, 0xED, 0xF1);
-    internal static readonly Color CheckColor = Color.FromArgb(0x24, 0xA1, 0xDE);
+    internal static readonly Color SeparatorColor = Color.FromArgb(0xD3, 0xE3, 0xFD);
+    internal static readonly Color CheckColor = TextColor;
 
     private readonly HashSet<ToolStripItem> _checked = new();
-    private Font _menuFont = new("Microsoft YaHei UI", 12f, GraphicsUnit.Pixel);
+    private Font _menuFont = new("Microsoft YaHei UI", 14f, GraphicsUnit.Pixel);
     private int _dpi;
 
     public TrayMenu()
@@ -238,6 +238,7 @@ internal sealed class TrayMenu : ContextMenuStrip
         BackColor = Color.White;
         ForeColor = TextColor;
         Renderer = new TrayMenuRenderer(this);
+        DropShadowEnabled = !WinShell.IsWindows11;
     }
 
     private float _uiScale = 1f;
@@ -264,6 +265,34 @@ internal sealed class TrayMenu : ContextMenuStrip
 
     internal bool IsChecked(ToolStripItem item) => _checked.Contains(item);
 
+    // Let DWM provide the same soft popup shadow as other Windows 11 applications.
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var parameters = base.CreateParams;
+            if (WinShell.IsWindows11) parameters.Style |= 0x00040000; // WS_THICKFRAME
+            return parameters;
+        }
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (WinShell.IsWindows11 && m.Msg == 0x0083 && m.WParam != IntPtr.Zero) // WM_NCCALCSIZE
+        {
+            m.Result = IntPtr.Zero;
+            return;
+        }
+        base.WndProc(ref m);
+        if (!WinShell.IsWindows11) return;
+        if (m.Msg == 0x0024) // WM_GETMINMAXINFO: do not impose a normal window's minimum width.
+        {
+            System.Runtime.InteropServices.Marshal.WriteInt32(m.LParam, 24, 1);
+            System.Runtime.InteropServices.Marshal.WriteInt32(m.LParam, 28, 1);
+        }
+        if (m.Msg == 0x0084 && m.Result.ToInt32() is >= 10 and <= 18) m.Result = new IntPtr(1);
+    }
+
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
@@ -286,29 +315,34 @@ internal sealed class TrayMenu : ContextMenuStrip
         _uiScale = dpi / 96f;
 
         var oldFont = _menuFont;
-        _menuFont = new Font("Microsoft YaHei UI", 12f * UiScale, GraphicsUnit.Pixel);
+        _menuFont = new Font("Microsoft YaHei UI", 14f * UiScale, GraphicsUnit.Pixel);
         Font = _menuFont;
         oldFont.Dispose();
 
+        AutoSize = false; // ToolStripDropDownMenu otherwise replaces the measured width.
         SuspendLayout();
-        Padding = new Padding(Px(3) + 1, Px(4) + 1, Px(3) + 1, Px(4) + 1);
+        Padding = new Padding(0, Px(8), 0, Px(8));
 
         int textWidth = 0;
         foreach (ToolStripItem item in Items)
         {
             if (item is ToolStripSeparator) continue;
             var size = TextRenderer.MeasureText(item.Text ?? "", _menuFont, Size.Empty,
-                TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
+                TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
             textWidth = Math.Max(textWidth, size.Width);
         }
 
-        int width = Math.Max(Px(140), textWidth + Px(12) + Px(34));
+        int width = Math.Max(Px(188), textWidth + Px(64));
+        int height = Padding.Vertical;
         foreach (ToolStripItem item in Items)
         {
-            item.Margin = Padding.Empty;
+            bool separator = item is ToolStripSeparator;
+            item.Margin = separator ? Padding.Empty : new Padding(Px(4), 0, Px(4), 0);
             item.Padding = Padding.Empty;
-            item.Size = new Size(width, item is ToolStripSeparator ? Px(7) : Px(26));
+            item.Size = new Size(separator ? width : width - Px(8), separator ? Px(17) : Px(32));
+            height += item.Height;
         }
+        Size = new Size(width, height);
         ResumeLayout(true);
     }
 }
@@ -335,11 +369,11 @@ internal sealed class TrayMenuRenderer : ToolStripRenderer
     {
         if (!e.Item.Selected || !e.Item.Enabled) return;
         float s = _menu.UiScale;
-        var rect = new RectangleF(2 * s, 1 * s, e.Item.Width - 4 * s, e.Item.Height - 2 * s);
+        var rect = new RectangleF(0, 0, e.Item.Width, e.Item.Height);
         var g = e.Graphics;
         var previous = g.SmoothingMode;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        using (var path = RoundedRect(rect, 4 * s))
+        using (var path = RoundedRect(rect, 6 * s))
         using (var brush = new SolidBrush(TrayMenu.HoverColor))
         {
             g.FillPath(brush, path);
@@ -351,11 +385,12 @@ internal sealed class TrayMenuRenderer : ToolStripRenderer
     {
         float s = _menu.UiScale;
         var item = e.Item;
-        int left = (int)Math.Round(12 * s);
+        int left = (int)Math.Round(16 * s);
         var rect = new Rectangle(left, 0, Math.Max(0, item.Width - left - (int)Math.Round(26 * s)), item.Height);
-        TextRenderer.DrawText(e.Graphics, e.Text, _menu.MenuFont, rect, TrayMenu.TextColor,
+        TextRenderer.DrawText(e.Graphics, e.Text, _menu.MenuFont, rect,
+            item.Enabled ? TrayMenu.TextColor : Color.FromArgb(104, 113, 125),
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine |
-            TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+            TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
 
         if (_menu.IsChecked(item)) DrawCheckMark(e.Graphics, item, s);
     }
@@ -363,7 +398,7 @@ internal sealed class TrayMenuRenderer : ToolStripRenderer
     protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
     {
         float s = _menu.UiScale;
-        int inset = (int)Math.Round(6 * s);
+        int inset = 0;
         int thickness = Math.Max(1, (int)Math.Round(s));
         int y = (e.Item.Height - thickness) / 2;
         using var brush = new SolidBrush(TrayMenu.SeparatorColor);
@@ -372,7 +407,7 @@ internal sealed class TrayMenuRenderer : ToolStripRenderer
 
     private static void DrawCheckMark(Graphics g, ToolStripItem item, float s)
     {
-        float cx = item.Width - 15 * s;
+        float cx = item.Width - 20 * s;
         float cy = item.Height / 2f;
         var previous = g.SmoothingMode;
         g.SmoothingMode = SmoothingMode.AntiAlias;
