@@ -87,6 +87,8 @@ internal sealed class WinHost : IHostBridge
 
     public void RevealInExplorer(string path) => WinShell.RevealInExplorer(path);
 
+    public void OpenFile(string path) => WinShell.OpenFile(path);
+
     public bool Wake()
     {
         var tray = _tray;

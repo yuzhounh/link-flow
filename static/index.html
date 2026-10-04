@@ -12,9 +12,11 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=5">
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=5">
   <link rel="apple-touch-icon" href="/icon-192.png?v=5">
-  <link rel="stylesheet" href="/css/style.css?v=15">
+  <link rel="stylesheet" href="/css/style.css?v=28">
   <script>
-    if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) {
+    // iPadOS 13+ reports a Macintosh UA; tell it apart from a real Mac by touch support
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+        (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)) {
       document.documentElement.classList.add('is-mobile');
     } else {
       document.documentElement.classList.add('is-desktop');
@@ -77,15 +79,27 @@
     <!-- Month History Floating Banner -->
     <div id="history-banner" style="display: none;">
       <div class="history-banner-left">
-        <span>📅 正在查看 <strong id="history-month-label">2026年9月</strong></span>
-        <span class="history-banner-count" id="history-banner-count">共 0 条记录</span>
+        <div class="month-nav">
+          <div class="month-dd" id="month-year-dd">
+            <button type="button" class="month-nav-select month-dd-btn" id="month-year-btn" title="选择年份"></button>
+            <div class="month-dd-list" id="month-year-list"></div>
+          </div>
+          <button id="month-prev-btn" class="month-nav-btn" title="上一个有记录的月份">‹</button>
+          <div class="month-dd" id="month-month-dd">
+            <button type="button" class="month-nav-select month-dd-btn" id="month-month-btn" title="选择月份"></button>
+            <div class="month-dd-list" id="month-month-list"></div>
+          </div>
+          <button id="month-next-btn" class="month-nav-btn" title="下一个有记录的月份">›</button>
+          <button id="month-current-btn" class="month-nav-today" title="跳到本月">本月</button>
+        </div>
+        <span class="history-banner-count" id="history-banner-count">共 0 条</span>
       </div>
       <button id="exit-history-btn" class="exit-history-btn" title="切回实时最新消息流">返回实时</button>
     </div>
 
     <!-- Collapsible Search Bar -->
     <div id="search-bar">
-      <input type="text" id="search-input" placeholder="搜索文字内容或文件名 (按回车过滤)...">
+      <input type="text" id="search-input" placeholder="搜索文字内容或文件名...">
       <button class="icon-btn" id="close-search-btn" title="清除搜索">✕</button>
     </div>
 
@@ -171,20 +185,6 @@
     </div>
   </div>
 
-  <!-- Month Selector Modal -->
-  <div class="modal-mask" id="month-modal">
-    <div class="modal-box month-modal-box">
-      <div class="modal-header">
-        <div class="modal-title">📅 按月份浏览历史</div>
-        <button class="close-btn" id="close-month-modal">✕</button>
-      </div>
-      <div style="font-size:12px;color:var(--text-sub);padding:0 2px 10px;">选择月份独立载入当月记录，高效查阅且不增加内存负担。</div>
-      <div id="month-list" class="month-list">
-        <!-- Dynamically rendered list items -->
-      </div>
-    </div>
-  </div>
-
   <!-- Settings Modal -->
   <div class="modal-mask" id="settings-modal">
     <div class="modal-box">
@@ -240,6 +240,6 @@
   <div id="toast">已复制到剪贴板</div>
 
   <script src="/js/qrcode.min.js"></script>
-  <script src="/js/app.js?v=14"></script>
+  <script src="/js/app.js?v=28"></script>
 </body>
 </html>

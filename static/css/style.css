@@ -178,23 +178,26 @@ header {
   color: var(--text-main);
 }
 
+/* Toggle buttons (month browsing / search) while their mode is on */
+.icon-btn.active,
+.icon-btn.active:hover {
+  background-color: var(--primary-light);
+  color: var(--primary);
+}
+
 
 /* History Month Banner */
 #history-banner {
   display: none;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
-  background: linear-gradient(135deg, rgba(36, 161, 222, 0.12), rgba(36, 161, 222, 0.05));
-  border-bottom: 1px solid rgba(36, 161, 222, 0.25);
+  min-height: 60px;
+  padding: 8px 16px;
+  background-color: var(--bg-header);
+  border-bottom: 1px solid var(--border-color);
   font-size: 13px;
   color: var(--text-main);
   z-index: 9;
-}
-
-[data-theme="dark"] #history-banner {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(56, 189, 248, 0.08));
-  border-bottom: 1px solid rgba(56, 189, 248, 0.35);
 }
 
 .history-banner-left {
@@ -204,10 +207,162 @@ header {
   flex-wrap: wrap;
 }
 
+/* Nav, count and "返回实时" flow in one row, wrapping on narrow screens */
+#history-banner {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px 10px;
+}
+
+#history-banner .history-banner-left {
+  display: contents;
+}
+
+#history-banner .exit-history-btn {
+  margin-left: auto;
+}
+
+.month-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.month-nav-select,
+.month-nav-btn,
+.month-nav-today {
+  height: 30px;
+  background: var(--bg-input);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.month-nav-select {
+  padding: 0 6px;
+  outline: none;
+}
+
+/* Custom dropdown: the button shows only the value, the list shows record counts */
+.month-dd {
+  position: relative;
+}
+
+.month-dd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 10px;
+}
+
+.month-dd-btn::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+}
+
+.month-dd-list {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  min-width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.month-dd.open .month-dd-list {
+  display: block;
+}
+
+.month-dd-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-main);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.month-dd-item:hover {
+  background-color: var(--primary-light);
+}
+
+.month-dd-item.selected {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Right-align label and count so the "月" / "年" and the numbers line up across rows */
+.month-dd-label {
+  min-width: 3em;
+  text-align: right;
+}
+
+.month-dd-count {
+  min-width: 3.4em;
+  padding: 1px 9px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: normal;
+  color: #64748b;
+  background-color: rgba(100, 116, 139, 0.14);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"] .month-dd-count {
+  color: #cbd5e1;
+  background-color: rgba(148, 163, 184, 0.22);
+}
+
+.month-nav-btn {
+  width: 30px;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+}
+
+.month-nav-today {
+  padding: 0 10px;
+}
+
+.month-nav-btn:hover:not(:disabled),
+.month-nav-today:hover:not(:disabled),
+.month-nav-select:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.month-nav-btn:disabled,
+.month-nav-today:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .history-banner-count {
   font-size: 12px;
   color: var(--text-sub);
-  background: var(--bg-header);
+  background: var(--bg-input);
   padding: 2px 8px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
@@ -238,10 +393,7 @@ header {
 /* Search bar (collapsible) */
 #search-bar {
   display: none;
-  position: absolute;
-  top: 60px;
-  left: 0;
-  right: 0;
+  flex-shrink: 0;
   height: 60px;
   padding: 8px 16px;
   background-color: var(--bg-header);
@@ -285,6 +437,11 @@ header {
   padding: 2px 10px;
   border-radius: 12px;
   user-select: none;
+}
+
+.timeline-top-hint {
+  background: none;
+  opacity: 0.7;
 }
 
 [data-theme="dark"] .timeline-date-divider {
@@ -981,91 +1138,6 @@ body.is-mobile .tool-buttons {
   gap: 10px;
 }
 
-/* Month Selector Modal */
-.month-modal-box {
-  max-width: 440px;
-  max-height: 82vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.month-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow-y: auto;
-  max-height: 380px;
-  padding-right: 4px;
-}
-
-.month-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  background-color: var(--bg-chat);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: left;
-  user-select: none;
-}
-
-.month-item:hover {
-  background-color: var(--border-color);
-  border-color: var(--primary);
-  transform: translateX(2px);
-}
-
-.month-item.active {
-  background-color: var(--primary-light);
-  border-color: var(--primary);
-}
-
-.month-item-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.month-item-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-main);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.month-item-meta {
-  font-size: 12px;
-  color: var(--text-sub);
-}
-
-.month-item-badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--bg-header);
-  color: var(--text-sub);
-  border: 1px solid var(--border-color);
-  white-space: nowrap;
-}
-
-.month-item.active .month-item-badge {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-}
-
-.month-empty-state {
-  text-align: center;
-  padding: 30px 10px;
-  color: var(--text-sub);
-  font-size: 13px;
-}
-
 /* Lightbox Image Preview */
 #lightbox-mask {
   display: none;
@@ -1169,8 +1241,11 @@ input:checked + .slider:before {
     height: 54px;
     padding: 0 12px;
   }
+  #history-banner {
+    min-height: 54px;
+    padding: 8px 12px;
+  }
   #search-bar {
-    top: 54px;
     height: 54px;
     padding: 8px 12px;
   }
