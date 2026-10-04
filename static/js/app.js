@@ -131,7 +131,6 @@
   const qrModal = document.getElementById('qr-modal');
   const openQrBtn = document.getElementById('open-qr-btn');
   const closeQrModal = document.getElementById('close-qr-modal');
-  const doneQrBtn = document.getElementById('done-qr-btn');
   const qrUrlText = document.getElementById('qr-url-text');
   const copyUrlBtn = document.getElementById('copy-url-btn');
   const ipSelect = document.getElementById('ip-select');
@@ -1052,7 +1051,6 @@
 
   openQrBtn.addEventListener('click', showQrModal);
   closeQrModal.addEventListener('click', () => qrModal.classList.remove('open'));
-  doneQrBtn.addEventListener('click', () => qrModal.classList.remove('open'));
 
   copyUrlBtn.addEventListener('click', () => {
     copyToClipboard(qrUrlText.textContent);
