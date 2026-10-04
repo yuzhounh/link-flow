@@ -4,7 +4,9 @@
   // iPadOS 13+ reports a Macintosh UA; tell it apart from a real Mac by touch support
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
     (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-  const currentDevice = isMobile ? 'phone' : 'pc';
+  // Which side of the timeline this browser is on: the PC running LinkFlow is 'pc', every other
+  // device (phone, tablet, another computer) is 'phone' - the same rule the server applies.
+  const currentDevice = () => (isHost ? 'pc' : 'phone');
 
   if (isMobile) {
     document.documentElement.classList.add('is-mobile');
@@ -40,13 +42,16 @@
     const android = ua.match(/Android[^;]*;\s*([^;)]+?)(?:\s+Build|\))/);
     const model = android && android[1] && android[1] !== 'K' ? android[1].trim() : '';
     if (/Android/.test(ua)) return model || (/Mobile/.test(ua) ? '安卓手机' : '安卓平板');
-    return isMobile ? '手机' : '';
+    if (/Windows/.test(ua)) return 'Windows 电脑';
+    if (/Macintosh/.test(ua)) return 'Mac';
+    if (/Linux|X11/.test(ua)) return 'Linux 电脑';
+    return isMobile ? '手机' : '电脑';
   }
 
   function getDeviceName() {
     let saved = '';
     try { saved = localStorage.getItem('linkflow_device_name') || ''; } catch (e) { /* storage unavailable */ }
-    return saved || (isMobile ? guessDeviceName() : hostName);
+    return saved || (isHost && hostName ? hostName : guessDeviceName());
   }
 
   function senderLabel(msg) {
@@ -288,10 +293,6 @@
         autoClipboard = infoData.auto_clipboard;
         maxUploadBytes = infoData.max_upload_bytes || maxUploadBytes;
         hostName = infoData.host_name || '';
-        if (settingDeviceName) {
-          settingDeviceName.value = getDeviceName();
-          settingDeviceName.placeholder = isMobile ? guessDeviceName() : hostName;
-        }
         if (infoData.pairing_token) pairingToken = infoData.pairing_token;
         if (appVersionText && infoData.version) appVersionText.textContent = `LinkFlow v${infoData.version}`;
         if (typeof infoData.is_host === 'boolean') {
@@ -301,6 +302,10 @@
             renderMessages(allMessages);
           }
           applyHostCapabilities();
+        }
+        if (settingDeviceName) {
+          settingDeviceName.value = getDeviceName();
+          settingDeviceName.placeholder = isHost && hostName ? hostName : guessDeviceName();
         }
         settingAutoClipboard.checked = autoClipboard;
         updateStorageStats(infoData.stats);
@@ -465,7 +470,7 @@
   }
 
   function appendMessageToUI(msg, autoScroll = true) {
-    const isSelf = (msg.sender === currentDevice);
+    const isSelf = (msg.sender === currentDevice());
     const row = document.createElement('div');
     row.id = `msg-${msg.id}`;
     row.className = `message-row sender-${msg.sender} ${isSelf ? 'is-current-device' : 'is-peer-device'}`;
@@ -633,7 +638,7 @@
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'text',
-        sender: currentDevice,
+        sender: currentDevice(),
         device: getDeviceName(),
         content: text,
         timestamp: Date.now()
@@ -695,7 +700,7 @@
 
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('sender', currentDevice);
+      formData.append('sender', currentDevice());
       formData.append('device', getDeviceName());
 
       try {
