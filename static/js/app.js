@@ -557,7 +557,9 @@
         <div class="file-icon-box"><span class="file-icon">${icon}</span><span class="file-ext-label">${escapeHtml(ext)}</span></div>
         <div class="file-info">
           <a class="file-name" href="${protectedFileUrl(msg.file_path)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(msg.file_name || '')}"><span class="file-name-base">${escapeHtml(baseName)}</span><span class="file-name-ext">${escapeHtml(fileExtWithDot)}</span></a>
-          <div class="file-meta">${msg.thumb_path ? '原图 · ' : ''}${formatFileSize(msg.file_size)}</div>
+          ${msg.thumb_path
+            ? `<a class="file-meta file-thumb-link" href="${protectedFileUrl(msg.file_path)}" target="_blank" rel="noopener noreferrer" title="查看原图">原图 · ${formatFileSize(msg.file_size)}</a>`
+            : `<div class="file-meta">${formatFileSize(msg.file_size)}</div>`}
           ${msg.thumb_path ? `<a class="file-meta file-thumb-link" href="${protectedThumbUrl(msg.thumb_path)}" target="_blank" rel="noopener noreferrer" title="查看压缩图">压缩图 · ${formatFileSize(msg.thumb_size)}</a>` : ''}
         </div>
         <div class="file-ops">
