@@ -276,6 +276,9 @@ internal sealed class LinkFlowServer
         return name.Length > 32 ? name.Substring(0, 32) : name;
     }
 
+    /// <summary>"computer" or "mobile" (phone/tablet); anything else is unknown.</summary>
+    private static string CleanDeviceKind(string? raw) => raw?.Trim() is "computer" or "mobile" ? raw.Trim() : "";
+
     private static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     private static string GuessMime(string fileName) =>
@@ -440,6 +443,7 @@ internal sealed class LinkFlowServer
         string sender = IsHost(ctx) ? "pc" : "phone";
         string note = Arg(ctx, "note") ?? "";
         string device = CleanDeviceName(Arg(ctx, "device"));
+        string kind = CleanDeviceKind(Arg(ctx, "kind"));
 
         string? boundary = null;
         if (MediaTypeHeaderValue.TryParse(ctx.Request.ContentType, out var mediaType) &&
@@ -500,6 +504,11 @@ internal sealed class LinkFlowServer
                 {
                     using var deviceReader = new StreamReader(section.Body, Encoding.UTF8);
                     device = CleanDeviceName(await deviceReader.ReadToEndAsync(ctx.RequestAborted));
+                }
+                else if (!isFile && name == "kind")
+                {
+                    using var kindReader = new StreamReader(section.Body, Encoding.UTF8);
+                    kind = CleanDeviceKind(await kindReader.ReadToEndAsync(ctx.RequestAborted));
                 }
                 else if (!isFile && name == "note")
                 {
@@ -566,7 +575,7 @@ internal sealed class LinkFlowServer
                 string targetPath = Path.Combine(targetDir, safeName);
                 File.Move(tempPath, targetPath);
                 movedPath = targetPath; // Only this request's successful move may be rolled back.
-                record = NewRecord(sender, "file", note.Trim(), safeName, $"{month}/{safeName}", size, GuessMime(fileName), device);
+                record = NewRecord(sender, "file", note.Trim(), safeName, $"{month}/{safeName}", size, GuessMime(fileName), device, kind);
 
                 if (thumbTemp != null)
                 {
@@ -919,7 +928,7 @@ internal sealed class LinkFlowServer
                     if (content.Length == 0) return;
                     string sender = client.IsHost ? "pc" : "phone";
                     var record = NewRecord(sender, "text", content, "", "", Encoding.UTF8.GetByteCount(content), "text/plain",
-                        CleanDeviceName(GetString(root, "device")));
+                        CleanDeviceName(GetString(root, "device")), CleanDeviceKind(GetString(root, "kind")));
                     lock (_dataLock) _db.Insert(record);
                     if (sender == "phone" && _autoClipboard) _ = _host.SetClipboardText(content);
                     Broadcast(new { type = "new_message", message = record });
@@ -958,7 +967,7 @@ internal sealed class LinkFlowServer
     // ------------------------------------------------------------------ data helpers
 
     private static Dictionary<string, object?> NewRecord(string sender, string msgType, string content,
-        string fileName, string filePath, long fileSize, string mimeType, string deviceName = "") => new()
+        string fileName, string filePath, long fileSize, string mimeType, string deviceName = "", string deviceKind = "") => new()
     {
         ["id"] = Guid.NewGuid().ToString(),
         ["timestamp"] = NowMs(),
@@ -972,6 +981,7 @@ internal sealed class LinkFlowServer
         ["thumb_path"] = "",
         ["thumb_size"] = 0L,
         ["device_name"] = deviceName,
+        ["device_kind"] = deviceKind,
     };
 
     private void DeleteMessageFiles(Dictionary<string, object?> message)
