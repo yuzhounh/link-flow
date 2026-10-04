@@ -31,7 +31,7 @@ internal sealed class TrayContext : ApplicationContext
         _menu = new TrayMenu();
         _menu.AddItem("打开 LinkFlow", ShowMainWindow);
         _menu.AddItem("在浏览器中打开", () => WinShell.OpenUrl(_server.PcUrl));
-        _menu.AddItem("复制手机连接地址", CopyPhoneUrl);
+        _menu.AddItem("复制连接地址", CopyPhoneUrl);
         _menu.AddItem("打开文件接收目录", OpenFilesFolder);
         _menu.AddItem("查看运行日志", OpenLog);
         _menu.AddSeparator();
@@ -104,7 +104,7 @@ internal sealed class TrayContext : ApplicationContext
         {
             string url = _server.PhoneUrl;
             Clipboard.SetDataObject(url, true, 10, 50);
-            ShowBalloon($"手机连接地址已复制到剪贴板:\n{url}");
+            ShowBalloon($"连接地址已复制到剪贴板:\n{url}");
         }
         catch (Exception ex)
         {
