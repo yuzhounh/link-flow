@@ -144,6 +144,14 @@ header {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  background-color: #9aa0a6;
+}
+
+.status-dot.retrying {
+  background-color: #faad14;
+}
+
+.status-dot.unpaired {
   background-color: #ff4d4f;
 }
 
