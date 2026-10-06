@@ -202,6 +202,28 @@
   }
 
   // 3. WebSocket Connection
+  // Connection state shown in the header: connecting / connected / retrying / unpaired.
+  const LONG_DISCONNECT_MS = 30000;
+  let disconnectedSince = 0;
+
+  function setConnState(state) {
+    statusDot.classList.remove('online', 'retrying', 'unpaired');
+    if (state === 'connected') {
+      statusDot.classList.add('online');
+      // Non-host devices (phone, tablet, other computers) connect to the host PC.
+      statusText.textContent = isHost ? '已连接' : '已连接电脑';
+    } else if (state === 'retrying') {
+      statusDot.classList.add('retrying');
+      const long = !isHost && disconnectedSince && Date.now() - disconnectedSince > LONG_DISCONNECT_MS;
+      statusText.textContent = long ? '已断开，请确认与电脑在同一 Wi-Fi' : '已断开，重连中…';
+    } else if (state === 'unpaired') {
+      statusDot.classList.add('unpaired');
+      statusText.textContent = '配对已失效，请重新扫码';
+    } else {
+      statusText.textContent = '正在连接…';
+    }
+  }
+
   function connectWebSocket() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const tokenQuery = authToken ? `?token=${encodeURIComponent(authToken)}` : '';
@@ -210,8 +232,8 @@
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      statusDot.classList.add('online');
-      statusText.textContent = '在线';
+      disconnectedSince = 0;
+      setConnState('connected');
     };
 
     ws.onmessage = (event) => {
@@ -224,8 +246,12 @@
     };
 
     ws.onclose = () => {
-      statusDot.classList.remove('online');
-      statusText.textContent = authToken || isHost ? '离线，重连中...' : '需要重新扫码配对';
+      if (authToken || isHost) {
+        if (!disconnectedSince) disconnectedSince = Date.now();
+        setConnState('retrying');
+      } else {
+        setConnState('unpaired');
+      }
       setTimeout(connectWebSocket, 2500);
     };
 
@@ -247,6 +273,7 @@
           renderMessages(allMessages);
         }
         applyHostCapabilities();
+        setConnState('connected');
       }
     } else if (data.type === 'new_message') {
       const msg = data.message;
@@ -288,7 +315,7 @@
       ]);
 
       if (msgRes.status === 401 || infoRes.status === 401) {
-        statusText.textContent = '配对已失效，请在电脑端重新扫码';
+        setConnState('unpaired');
         return;
       }
 
@@ -662,7 +689,7 @@
       messageInput.style.height = '56px';
       messageInput.style.overflowY = 'hidden';
     } else {
-      showToast('连接未就绪，正在重连...');
+      showToast('已断开，正在重连…');
     }
   }
 
