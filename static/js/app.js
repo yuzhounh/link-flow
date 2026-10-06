@@ -211,7 +211,7 @@
 
     ws.onopen = () => {
       statusDot.classList.add('online');
-      statusText.textContent = '实时同步中';
+      statusText.textContent = '在线';
     };
 
     ws.onmessage = (event) => {
@@ -225,7 +225,7 @@
 
     ws.onclose = () => {
       statusDot.classList.remove('online');
-      statusText.textContent = authToken || isHost ? '连接断开，重试中...' : '需要重新扫码配对';
+      statusText.textContent = authToken || isHost ? '离线，重连中...' : '需要重新扫码配对';
       setTimeout(connectWebSocket, 2500);
     };
 
