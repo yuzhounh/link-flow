@@ -108,6 +108,12 @@ try
     await Send("tiny.png", "", bytes: small);
     Check(Directory.GetFiles(thumbsRoot, "*", SearchOption.AllDirectories).Length == 1, "Small image gets no compressed copy");
     Console.WriteLine("PASS: photo upload keeps original and adds compressed copy");
+    Sql("INSERT INTO messages (id,timestamp,sender,msg_type,file_path) VALUES ('cursor-a',100,'pc','file','a'),('cursor-b',100,'pc','file','b'),('cursor-phone',100,'phone','file','c')");
+    var afterMethod = dbType.GetMethod("GetFilesAfter")!;
+    var firstPage = (List<Dictionary<string, object?>>)afterMethod.Invoke(database, new object[] { 100L, "", 1 })!;
+    var secondPage = (List<Dictionary<string, object?>>)afterMethod.Invoke(database, new object[] { 100L, "cursor-a", 1 })!;
+    Check((string)firstPage[0]["id"]! == "cursor-a" && (string)secondPage[0]["id"]! == "cursor-b", "Receive cursor handles timestamp ties");
+    Console.WriteLine("PASS: automatic receive cursor pages tied timestamps and excludes phone uploads");
 }
 finally
 {

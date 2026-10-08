@@ -96,6 +96,10 @@ internal sealed class MessageDb
         m["id"], m["timestamp"], m["sender"], m["msg_type"], m["content"], m["file_name"], m["file_path"],
         m["file_size"], m["mime_type"], m["thumb_path"], m["thumb_size"], m["device_name"], m["device_kind"]);
 
+    public List<Dictionary<string, object?>> GetFilesAfter(long timestamp, string afterId, int limit) => Query(
+        "SELECT * FROM messages WHERE sender='pc' AND msg_type='file' AND (timestamp > $p0 OR (timestamp = $p0 AND id > $p1)) ORDER BY timestamp, id LIMIT $p2",
+        timestamp, afterId, limit);
+
     public List<Dictionary<string, object?>> GetMessages(int limit, long? beforeTs, string? search, string? month)
     {
         var sql = new StringBuilder("SELECT * FROM messages WHERE 1=1");

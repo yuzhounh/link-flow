@@ -125,11 +125,11 @@
   const monthNextBtn = document.getElementById('month-next-btn');
   const monthCurrentBtn = document.getElementById('month-current-btn');
   const historyBannerCount = document.getElementById('history-banner-count');
-  const exitHistoryBtn = document.getElementById('exit-history-btn');
 
   // Modals
   const qrModal = document.getElementById('qr-modal');
   const openQrBtn = document.getElementById('open-qr-btn');
+  const hostQrIcon = openQrBtn.innerHTML;
   const closeQrModal = document.getElementById('close-qr-modal');
   const qrUrlText = document.getElementById('qr-url-text');
   const copyUrlBtn = document.getElementById('copy-url-btn');
@@ -161,7 +161,12 @@
   function applyHostCapabilities() {
     if (settingAutoClipboard) settingAutoClipboard.disabled = !isHost;
     if (clearAllBtn) clearAllBtn.hidden = !isHost;
-    if (openQrBtn) openQrBtn.hidden = !isHost;
+    if (openQrBtn) {
+      openQrBtn.hidden = false;
+      openQrBtn.title = isHost ? '扫码连接' : '连接管理';
+      openQrBtn.setAttribute('aria-label', openQrBtn.title);
+      openQrBtn.innerHTML = isHost ? hostQrIcon : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="13" rx="2"/><path d="M8 21h8M12 16v5"/></svg>';
+    }
   }
 
   applyHostCapabilities();
@@ -205,8 +210,13 @@
   // Connection state shown in the header: connecting / connected / retrying / unpaired.
   const LONG_DISCONNECT_MS = 30000;
   let disconnectedSince = 0;
+  let reconnectTimer = null;
+  let liveSyncRunning = false;
+  let deferredLiveEvents = [];
 
   function setConnState(state) {
+    window.LinkFlowServerOnline = state === 'connected';
+    window.LinkFlowDownloads?.apply();
     statusDot.classList.remove('online', 'retrying', 'unpaired');
     if (state === 'connected') {
       statusDot.classList.add('online');
@@ -225,6 +235,8 @@
   }
 
   function connectWebSocket() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+    clearTimeout(reconnectTimer);
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const tokenQuery = authToken ? `?token=${encodeURIComponent(authToken)}` : '';
     const wsUrl = `${protocol}//${location.host}/ws${tokenQuery}`;
@@ -234,6 +246,7 @@
     ws.onopen = () => {
       disconnectedSince = 0;
       setConnState('connected');
+      loadInitialData();
     };
 
     ws.onmessage = (event) => {
@@ -252,7 +265,8 @@
       } else {
         setConnState('unpaired');
       }
-      setTimeout(connectWebSocket, 2500);
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connectWebSocket, 2500);
     };
 
     ws.onerror = (err) => {
@@ -261,6 +275,23 @@
   }
 
   function handleIncomingWS(data) {
+    if (liveSyncRunning && ['new_message', 'message_deleted', 'messages_cleared'].includes(data.type)) {
+      deferredLiveEvents.push(data);
+      return;
+    }
+    if (data.type === 'file_receiving') {
+      if (!isHost) return;
+      let row = document.getElementById(`msg-${data.message.id}`);
+      if (!row) { appendMessageToUI(data.message); row = document.getElementById(`msg-${data.message.id}`); }
+      const card = row.querySelector('.file-card');
+      card.classList.toggle('download-active', data.status === 'running');
+      card.classList.toggle('download-failed', data.status === 'failed');
+      card.style.setProperty('--download-progress', `${Math.max(0, Math.min(99, data.percent))}%`);
+      let label = card.querySelector('.download-status');
+      if (!label) { label = document.createElement('div'); label.className = 'download-status'; card.querySelector('.file-info').appendChild(label); }
+      label.textContent = data.status === 'failed' ? `接收失败 · ${data.detail || '请重试'}` : data.percent >= 0 ? `接收中 ${data.percent}%` : '正在接收…';
+      return;
+    }
     if (data.type === 'connected') {
       lanIp = data.lan_ip || location.hostname;
       port = data.port || location.port;
@@ -276,14 +307,17 @@
         setConnState('connected');
       }
     } else if (data.type === 'new_message') {
+      if (data.transfer_id) document.getElementById(`msg-${data.transfer_id}`)?.remove();
       const msg = data.message;
+      if (isHost && msg.msg_type !== 'text') showToast(`已接收：${msg.file_name}`);
+      if (window.LinkFlowAndroid && msg.msg_type !== 'text' && msg.sender === 'pc') window.location.href = 'linkflow://receive';
       if (currentViewMonth) {
         const msgMonth = getLocalMonthString(msg.timestamp);
         if (msgMonth === currentViewMonth) {
           appendLiveMessage(msg);
           updateHistoryBannerCount();
         } else {
-          showToast(`收到来自${deviceIcon(msg)} ${senderLabel(msg)}的新消息，点击「返回实时」查看`);
+          showToast('有新消息，请返回实时消息查看');
         }
       } else {
         appendLiveMessage(msg);
@@ -302,16 +336,18 @@
     } else if (data.type === 'wake_tab') {
       triggerTabWakeNotice();
     } else if (data.type === 'error') {
-      showToast(data.error || '操作未完成');
+      showToast(data.error || '操作未完成', true);
     }
   }
 
   // 4. REST API & Initial Load
   async function loadInitialData() {
+    if (liveSyncRunning) return;
+    liveSyncRunning = true;
     try {
       const [msgRes, infoRes] = await Promise.all([
-        apiFetch(`/api/messages?limit=${PAGE_SIZE}`),
-        apiFetch('/api/system/info')
+        apiFetch(`/api/messages?limit=${PAGE_SIZE}`, { signal: AbortSignal.timeout(15000) }),
+        apiFetch('/api/system/info', { signal: AbortSignal.timeout(15000) })
       ]);
 
       if (msgRes.status === 401 || infoRes.status === 401) {
@@ -320,7 +356,7 @@
       }
 
       const msgData = await msgRes.json();
-      if (msgData.status === 'ok') {
+      if (msgData.status === 'ok' && !currentViewMonth && !searchInput.value.trim()) {
         applyLiveMessages(msgData.messages);
       }
 
@@ -334,7 +370,9 @@
         hostName = infoData.host_name || '';
         hostKind = infoData.host_kind || '';
         if (infoData.pairing_token) pairingToken = infoData.pairing_token;
-        if (appVersionText && infoData.version) appVersionText.textContent = `LinkFlow v${infoData.version}`;
+        if (appVersionText && (window.LinkFlowAppVersion || infoData.version)) {
+          appVersionText.textContent = `LinkFlow v${window.LinkFlowAppVersion || infoData.version}`;
+        }
         if (typeof infoData.is_host === 'boolean') {
           const oldIsHost = isHost;
           isHost = infoData.is_host;
@@ -352,10 +390,29 @@
         setupIpSelector();
       }
       fillIfShort();
+      if (window.LinkFlowAndroid) window.location.href = 'linkflow://receive';
     } catch (e) {
       console.error('Failed to load initial data', e);
+    } finally {
+      liveSyncRunning = false;
+      const events = deferredLiveEvents;
+      deferredLiveEvents = [];
+      events.forEach(handleIncomingWS);
     }
   }
+
+  function resumeSync() {
+    if (document.visibilityState === 'hidden') return;
+    // A suspended WebView may retain an OPEN socket which is no longer alive.
+    if (ws) { ws.onclose = null; ws.close(); ws = null; }
+    connectWebSocket();
+    if (searchInput.value.trim()) searchInput.dispatchEvent(new Event('input'));
+    else if (currentViewMonth) selectMonth(currentViewMonth);
+  }
+  document.addEventListener('visibilitychange', resumeSync);
+  window.addEventListener('online', resumeSync);
+  window.addEventListener('pageshow', resumeSync);
+  window.addEventListener('linkflow-resume', resumeSync);
 
   function applyLiveMessages(messages) {
     allMessages = messages || [];
@@ -421,6 +478,7 @@
 
   // Live-appended messages need a date divider too when the day changes
   function appendLiveMessage(msg) {
+    if (allMessages.some(existing => existing.id === msg.id)) return;
     const prev = allMessages[allMessages.length - 1];
     allMessages.push(msg);
     if (!prev || new Date(prev.timestamp).toDateString() !== new Date(msg.timestamp).toDateString()) {
@@ -542,8 +600,11 @@
     // Photos keep a small compressed copy. On the PC the card's round button copies it, and the
     // side menu offers original / locate / delete; elsewhere the menu offers both copies.
     const hasThumb = msg.msg_type !== 'text' && !!msg.thumb_path;
-    const hostThumb = hasThumb && isHost;
+    const isImage = msg.msg_type !== 'text' && /\.(jpe?g|png|gif|webp|bmp|svg|heic|ico|avif)$/i.test(msg.file_name || '');
+    const hostImage = isHost && (isImage || hasThumb);
+    const menuItems = [];
     const addAction = (label, handler) => {
+      menuItems.push({ label, handler });
       const btn = document.createElement('button');
       btn.className = 'action-btn-mini';
       btn.innerHTML = label;
@@ -554,15 +615,35 @@
       actions.appendChild(btn);
     };
 
-    if (hostThumb) {
-      addAction('📋 复制原图', () => copyMessage(msg, false));
+    if (hostImage) {
+      if (hasThumb) addAction('📋 复制原图', () => copyMessage(msg, false));
       addAction('📁 定位', () => revealInFolder(msg.id));
     } else {
-      addAction(hasThumb ? '📋 复制压缩图' : '📋 复制', () => copyMessage(msg, hasThumb));
-      if (hasThumb) addAction('📋 复制原图', () => copyMessage(msg, false));
+      if (!isHost && msg.msg_type !== 'text') {
+        addAction('🔗 复制链接', () => { copyToClipboard(protectedFileUrl(msg.file_path, true)); showToast('已复制文件链接'); });
+        addAction('⬇️ 重新接收', () => window.LinkFlowDownloads.action('redownload', protectedFileUrl(msg.file_path)));
+        if (hasThumb) addAction('⬇️ 接收压缩图', () => window.LinkFlowDownloads.action('receive', protectedThumbUrl(msg.thumb_path)));
+      } else {
+        addAction(hasThumb ? '📋 复制压缩图' : '📋 复制', () => copyMessage(msg, hasThumb));
+        if (hasThumb) addAction('📋 复制原图', () => copyMessage(msg, false));
+      }
     }
 
     const isFileMsg = (msg.msg_type !== 'text');
+    if (isMobile && !isFileMsg) {
+      menuItems.push({ label: '✂️ 选择文字', handler: () => {
+        const bubbleEl = bubbleWrapper.querySelector('.bubble');
+        if (!bubbleEl) return;
+        bubbleEl.classList.add('selectable');
+        const range = document.createRange();
+        range.selectNodeContents(bubbleEl);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.addEventListener('click', () => bubbleEl.classList.remove('selectable'), { once: true });
+      } });
+    }
+    menuItems.push({ label: '🗑️ 删除', handler: () => deleteMessage(msg.id, isFileMsg) });
     const delBtn = document.createElement('button');
     delBtn.className = 'action-btn-mini';
     delBtn.innerHTML = '🗑️ 删除';
@@ -598,25 +679,47 @@
       }
 
       const { baseName, ext: fileExtWithDot } = splitFileName(msg.file_name || 'file');
+      bubble.dataset.fileUrl = protectedFileUrl(msg.file_path);
+      bubble.dataset.hostReceived = String(isHost && !msg.receiving);
+      bubble.dataset.receiving = String(!!msg.receiving);
 
       bubble.innerHTML = `
         <div class="file-icon-box"><span class="file-icon">${icon}</span><span class="file-ext-label">${escapeHtml(ext)}</span></div>
         <div class="file-info">
-          <a class="file-name" href="${protectedFileUrl(msg.file_path)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(msg.file_name || '')}"><span class="file-name-base">${escapeHtml(baseName)}</span><span class="file-name-ext">${escapeHtml(fileExtWithDot)}</span></a>
+          <a class="file-name" href="${protectedFileUrl(msg.file_path)}" target="${isHost ? '_blank' : '_self'}" rel="noopener noreferrer" title="${escapeHtml(msg.file_name || '')}"><span class="file-name-base">${escapeHtml(baseName)}</span><span class="file-name-ext">${escapeHtml(fileExtWithDot)}</span></a>
           ${msg.thumb_path
             ? `<a class="file-meta file-thumb-link" href="${protectedFileUrl(msg.file_path)}" target="_blank" rel="noopener noreferrer" title="查看原图">原图 · ${formatFileSize(msg.file_size)}</a>`
             : `<div class="file-meta">${formatFileSize(msg.file_size)}</div>`}
           ${msg.thumb_path ? `<a class="file-meta file-thumb-link" href="${protectedThumbUrl(msg.thumb_path)}" target="_blank" rel="noopener noreferrer" title="查看压缩图">压缩图 · ${formatFileSize(msg.thumb_size)}</a>` : ''}
         </div>
         <div class="file-ops">
-          ${hostThumb ? `<button class="file-op-btn copy-thumb-btn" title="复制压缩图">📋</button>` : isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : `<a class="file-op-btn" href="${protectedFileUrl(msg.file_path)}" download="${escapeHtml(msg.file_name || '')}" title="下载保存">⬇️</a>`}
+          ${hostImage ? `<button class="file-op-btn copy-image-btn" title="${hasThumb ? '复制压缩图' : '复制原图'}">📋</button>` : isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : `<a class="file-op-btn" href="${protectedFileUrl(msg.file_path)}" download="${escapeHtml(msg.file_name || '')}" title="下载保存">⬇️</a>`}
         </div>
       `;
-      if (isHost) {
+      if (msg.receiving) {
+        actions.hidden = true;
+        bubble.querySelectorAll('a').forEach(link => { link.removeAttribute('href'); link.removeAttribute('target'); });
+        bubble.querySelector('.file-ops')?.remove();
+      } else if (isHost) {
+        bubble.classList.add('download-complete');
+        bubble.style.setProperty('--download-progress', '100%');      }
+      if (!isHost && isImage) {
+        bubble.querySelectorAll('.file-name, .file-thumb-link').forEach(link => {
+          link.addEventListener('click', event => {
+            event.preventDefault();
+            if (window.LinkFlowAndroid && window.LinkFlowServerOnline === false && window.LinkFlowDownloads.isReceived(link.href)) {
+              window.LinkFlowDownloads.action('open', link.href);
+              return;
+            }
+            openLightbox(link.href);
+          });
+        });
+      }
+      if (isHost && !msg.receiving) {
         const btn = bubble.querySelector('.open-folder-btn');
         if (btn) btn.onclick = () => revealInFolder(msg.id);
-        const copyThumb = bubble.querySelector('.copy-thumb-btn');
-        if (copyThumb) copyThumb.onclick = () => copyMessage(msg, true);
+        const copyImage = bubble.querySelector('.copy-image-btn');
+        if (copyImage) copyImage.onclick = () => copyMessage(msg, hasThumb);
         // Non-previewable files: let the PC open them (or locate them), not the browser.
         if (!isBrowserPreviewable(fileExtWithDot)) {
           bubble.querySelector('a.file-name').addEventListener('click', (e) => {
@@ -631,12 +734,10 @@
     bubbleWrapper.appendChild(actions);
 
     if (isMobile) {
-      bubbleWrapper.addEventListener('click', (e) => {
-        if (e.target.closest('a, button, video, audio')) return;
-        document.querySelectorAll('.bubble-actions.show').forEach(el => {
-          if (el !== actions) el.classList.remove('show');
-        });
-        actions.classList.toggle('show');
+      // Phones have no hover: long-press a message to get its actions in a sheet; a tap does nothing.
+      bubbleWrapper.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        openActionSheet(menuItems);
       });
     }
 
@@ -645,10 +746,30 @@
     row.appendChild(avatar);
     row.appendChild(bodyWrap);
     chatHistory.appendChild(row);
+    window.LinkFlowDownloads?.apply(row);
 
     if (autoScroll) {
       scrollToBottom();
     }
+  }
+
+  function openActionSheet(items) {
+    document.querySelector('.action-sheet-mask')?.remove();
+    const mask = document.createElement('div');
+    mask.className = 'action-sheet-mask';
+    const sheet = document.createElement('div');
+    sheet.className = 'action-sheet';
+    const close = () => mask.remove();
+    for (const item of items) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.innerHTML = item.label;
+      btn.onclick = () => { close(); item.handler(); };
+      sheet.appendChild(btn);
+    }
+    mask.addEventListener('click', (e) => { if (e.target === mask) close(); });
+    mask.appendChild(sheet);
+    document.body.appendChild(mask);
   }
 
   function escapeAndLinkText(text) {
@@ -731,7 +852,7 @@
     for (let i = 0; i < total; i++) {
       const file = fileList[i];
       if (file.size > maxUploadBytes) {
-        showToast(`${file.name} 超过 ${formatFileSize(maxUploadBytes)} 上传上限`);
+        showToast(`${file.name} 超过 ${formatFileSize(maxUploadBytes)} 上传上限`, true);
         continue;
       }
       if (total > 1) {
@@ -741,14 +862,15 @@
       }
 
       const formData = new FormData();
-      formData.append('file', file);
       formData.append('sender', currentDevice());
       formData.append('device', getDeviceName());
       formData.append('kind', deviceKind());
+      formData.append('file', file);
 
       try {
         const res = await apiFetch('/api/upload', {
           method: 'POST',
+          headers: { 'X-LinkFlow-File-Size': String(file.size) },
           body: formData
         });
         const result = await res.json();
@@ -758,11 +880,11 @@
             showToast('传输成功');
           }
         } else {
-          showToast(`上传失败 (${file.name}): ${result.error || '未知错误'}`);
+          showToast(`上传失败 (${file.name}): ${result.error || '未知错误'}`, true);
         }
       } catch (err) {
         console.error('Upload error', err);
-        showToast(`传输失败 (${file.name})，请检查网络`);
+        showToast(`传输失败 (${file.name})，请检查网络`, true);
       }
     }
 
@@ -773,6 +895,7 @@
         showToast(`传输完成: 成功 ${successCount}/${total} 个文件`);
       }
     }
+    if (successCount > 0) loadInitialData();
   }
 
   // File pickers
@@ -795,8 +918,8 @@
   });
 
   // 7. Clipboard & Drag and Drop
-  // Ctrl+V paste screenshots
-  window.addEventListener('paste', (e) => {
+  // Capture the files during the paste event; clipboard items expire after the handler.
+  window.addEventListener('paste', async (e) => {
     if (e.clipboardData && e.clipboardData.items) {
       const items = e.clipboardData.items;
       const files = [];
@@ -804,16 +927,20 @@
         if (items[i].kind === 'file') {
           const blob = items[i].getAsFile();
           if (blob) {
-            // Give pasted screenshot a meaningful timestamped name
-            const ext = blob.type.split('/')[1] || 'png';
-            const screenshotFile = new File([blob], `Screenshot_${new Date().toISOString().replace(/[:.]/g, '-')}.${ext}`, { type: blob.type });
-            files.push(screenshotFile);
+            files.push(blob);
           }
         }
       }
       if (files.length > 0) {
         e.preventDefault();
-        uploadFiles(files);
+        let metadata = null;
+        if (isHost) {
+          try {
+            const response = await apiFetch('/api/system/clipboard?format=files', { signal: AbortSignal.timeout(1500) });
+            if (response.ok) metadata = await response.json();
+          } catch (_) { /* Preserve browser-provided names if native metadata is unavailable. */ }
+        }
+        uploadFiles(LinkFlowClipboard.prepare(files, metadata));
       }
     }
   });
@@ -870,7 +997,7 @@
       document.execCommand('copy');
       showToast('已复制到剪贴板');
     } catch (e) {
-      showToast('复制失败');
+      showToast('复制失败', true);
     }
     document.body.removeChild(ta);
   }
@@ -893,10 +1020,10 @@
           showToast('已复制文件');
         } else {
           const errMsg = (data && data.error) ? data.error : '文件复制失败，请检查服务状态';
-          showToast(errMsg);
+          showToast(errMsg, true);
         }
       } catch (e) {
-        showToast('请求服务失败，请检查服务是否正常运行');
+        showToast('请求服务失败，请检查服务是否正常运行', true);
       }
     } else {
       const fileUrl = compressed ? protectedThumbUrl(msg.thumb_path, true) : protectedFileUrl(msg.file_path, true);
@@ -987,15 +1114,15 @@
           showToast('已在资源管理器中定位');
         }
       } else {
-        showToast('文件未找到或已被移除');
+        showToast('文件未找到或已被移除', true);
       }
     } catch (e) {
-      showToast('无法定位文件');
+      showToast('无法定位文件', true);
     }
   }
 
   function deleteMessage(msgId, isFile = false) {
-    const tip = isFile ? '确定删除此文件及本地物理文件吗？' : '确定删除此消息吗？';
+    const tip = isFile ? '删除此记录及电脑端保存的文件吗？这会影响所有连接设备，手机已下载的副本不会自动删除。' : '确定删除此消息吗？';
     if (confirm(tip)) {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'delete', id: msgId }));
@@ -1059,6 +1186,12 @@
   }
 
   async function showQrModal() {
+    if (!isHost) {
+      if (window.LinkFlowAndroid) { window.location.href = 'linkflow://manage'; return; }
+      document.getElementById('connection-server').textContent = '当前电脑：' + (hostName ? hostName + ' · ' : '') + location.host;
+      document.getElementById('connection-modal').classList.add('open');
+      return;
+    }
     if (!pairingToken) {
       try {
         const res = await apiFetch('/api/system/info');
@@ -1069,7 +1202,7 @@
       }
     }
     if (!pairingToken) {
-      showToast('无法生成安全配对链接，请重启 LinkFlow 后重试');
+      showToast('无法生成安全配对链接，请重启 LinkFlow 后重试', true);
       return;
     }
     qrModal.classList.add('open');
@@ -1077,6 +1210,11 @@
   }
 
   openQrBtn.addEventListener('click', showQrModal);
+  document.getElementById('close-connection-modal').addEventListener('click', () => document.getElementById('connection-modal').classList.remove('open'));
+  document.getElementById('reconnect-btn').addEventListener('click', () => {
+    document.getElementById('connection-modal').classList.remove('open');
+    resumeSync();
+  });
   closeQrModal.addEventListener('click', () => qrModal.classList.remove('open'));
 
   copyUrlBtn.addEventListener('click', () => {
@@ -1202,12 +1340,12 @@
         updateHistoryBannerCount();
         if (historyBanner) historyBanner.style.display = 'flex';
       } else {
-        showToast('获取该月记录失败');
+        showToast('获取该月记录失败', true);
         if (currentViewMonth) renderMonthNav(currentViewMonth);
       }
     } catch (err) {
       console.error('Failed to select month', err);
-      showToast('载入失败，请重试');
+      showToast('载入失败，请重试', true);
       if (currentViewMonth) renderMonthNav(currentViewMonth);
     }
   }
@@ -1218,14 +1356,12 @@
     currentViewMonth = null;
     updateToolbarState();
     if (historyBanner) historyBanner.style.display = 'none';
-    showToast('正在切回实时消息...');
     try {
       const res = await apiFetch(`/api/messages?limit=${PAGE_SIZE}`);
       const data = await res.json();
       if (data.status === 'ok') {
         resetSearchText();
         applyLiveMessages(data.messages);
-        showToast('已切回实时最新消息');
         fillIfShort();
       }
     } catch (err) {
@@ -1246,7 +1382,12 @@
 
   // Highlights the header toggle buttons while their mode is on
   function updateToolbarState() {
-    if (openCalendarBtn) openCalendarBtn.classList.toggle('active', !!currentViewMonth);
+    if (openCalendarBtn) {
+      openCalendarBtn.classList.toggle('active', !!currentViewMonth);
+      openCalendarBtn.title = currentViewMonth ? '返回实时消息' : '按月份浏览';
+      openCalendarBtn.setAttribute('aria-label', openCalendarBtn.title);
+      openCalendarBtn.setAttribute('aria-pressed', String(!!currentViewMonth));
+    }
     if (toggleSearchBtn) toggleSearchBtn.classList.toggle('active', searchBar.classList.contains('active'));
   }
 
@@ -1255,10 +1396,6 @@
     searchInput.value = '';
     searchSeq++;
     clearTimeout(searchTimer);
-  }
-
-  if (exitHistoryBtn) {
-    exitHistoryBtn.addEventListener('click', exitHistoryMode);
   }
 
   // Close modals on clicking outside mask
@@ -1294,7 +1431,7 @@
     } catch (err) {
       autoClipboard = !autoClipboard;
       e.target.checked = autoClipboard;
-      showToast('只有电脑端可以修改此设置');
+      showToast('只有电脑端可以修改此设置', true);
       console.error(err);
     }
   });
@@ -1375,9 +1512,10 @@
 
   // 14. Toast helper
   let toastTimer = null;
-  function showToast(text) {
+  function showToast(text, isError = false) {
     if (toastTimer) clearTimeout(toastTimer);
     toast.textContent = text;
+    toast.classList.toggle('error', isError);
     toast.classList.add('show');
     toastTimer = setTimeout(() => {
       toast.classList.remove('show');
@@ -1533,6 +1671,5 @@
 
   // Initialize
   initSingleInstance();
-  loadInitialData();
   connectWebSocket();
 })();

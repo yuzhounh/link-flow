@@ -2,6 +2,7 @@ using System;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -67,6 +68,18 @@ internal sealed class WinHost : IHostBridge
         {
             return "";
         }
+    });
+
+    public Task<(string[] Names, bool HasImage)> GetClipboardFileInfo() => OnUi(() =>
+    {
+        try
+        {
+            string[] names = Clipboard.ContainsFileDropList()
+                ? Clipboard.GetFileDropList().Cast<string>().Select(path => Path.GetFileName(path)).ToArray()
+                : Array.Empty<string>();
+            return (names, Clipboard.ContainsImage());
+        }
+        catch { return (Array.Empty<string>(), false); }
     });
 
     public Task<bool> SetClipboardFile(string path) => OnUi(() =>

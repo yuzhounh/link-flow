@@ -4,7 +4,7 @@ namespace LinkFlow;
 
 internal static class AppInfo
 {
-    public const string Version = "0.3.1";
+    public static readonly string Version = typeof(AppInfo).Assembly.GetName().Version?.ToString(3) ?? "unknown";
     public const int DefaultPort = 5837;
     public const long MaxUploadBytes = 256L * 1024 * 1024;
     public const long MaxRequestBytes = MaxUploadBytes + 2L * 1024 * 1024;

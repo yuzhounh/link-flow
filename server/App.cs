@@ -33,6 +33,7 @@ internal interface IHostBridge
 {
     Task<bool> SetClipboardText(string text);
     Task<string> GetClipboardText();
+    Task<(string[] Names, bool HasImage)> GetClipboardFileInfo();
     Task<bool> SetClipboardFile(string path);
     void RevealInExplorer(string path);
     void OpenFile(string path);
@@ -287,7 +288,9 @@ internal sealed class LinkFlowServer
     private static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     private static string GuessMime(string fileName) =>
-        MimeTypes.TryGetContentType(fileName, out var type) ? type : "application/octet-stream";
+        Path.GetExtension(fileName).Equals(".apk", StringComparison.OrdinalIgnoreCase)
+            ? "application/vnd.android.package-archive"
+            : MimeTypes.TryGetContentType(fileName, out var type) ? type : "application/octet-stream";
 
     // How uploaded files are served / opened. Keep PreviewExts in sync with static/js/app.js.
     // Images, PDF, video and audio render in the browser as-is.
@@ -394,6 +397,15 @@ internal sealed class LinkFlowServer
         string method = ctx.Request.Method;
         if (HttpMethods.IsGet(method))
         {
+            if (Arg(ctx, "receive_cursor") == "1") {
+                await WriteJson(ctx, new { status = "ok", cursor = NowMs() });
+                return;
+            }
+            if (long.TryParse(Arg(ctx, "receive_after"), out long after)) {
+                var files = _db.GetFilesAfter(Math.Max(0, after), Arg(ctx, "after_id") ?? "", 200);
+                await WriteJson(ctx, new { status = "ok", messages = files });
+                return;
+            }
             int limit = int.TryParse(Arg(ctx, "limit"), out int l) ? Math.Clamp(l, 1, 500) : 50;
             long? beforeTs = long.TryParse(Arg(ctx, "before_ts"), out long b) ? b : null;
             string? search = Arg(ctx, "search");
@@ -465,6 +477,14 @@ internal sealed class LinkFlowServer
         string? rawName = null;
         long size = 0;
         bool tooLarge = false;
+        string transferId = "transfer-" + Guid.NewGuid().ToString("N");
+        long expected = long.TryParse(ctx.Request.Headers["X-LinkFlow-File-Size"], out long declared) && declared >= 0 ? declared : 0;
+        long lastProgress = 0;
+        void ReportTransfer(string state, string detail = "") => Broadcast(new {
+            type = "file_receiving", status = state, detail,
+            percent = expected > 0 ? (int)Math.Min(99, size * 100.0 / expected) : -1,
+            message = new { id = transferId, timestamp = NowMs(), sender, msg_type = "file", file_name = SafeFileName(rawName), file_path = "", file_size = expected, device_name = device, device_kind = kind, receiving = true }
+        });
 
         try
         {
@@ -487,6 +507,7 @@ internal sealed class LinkFlowServer
                         ? disposition.FileNameStar.Value
                         : HeaderUtilities.RemoveQuotes(disposition.FileName).Value;
                     tempPath = Path.Combine(UploadTempDir, Guid.NewGuid().ToString("N") + ".part");
+                    ReportTransfer("running");
 
                     await using (var output = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, true))
                     {
@@ -501,6 +522,7 @@ internal sealed class LinkFlowServer
                                 break;
                             }
                             await output.WriteAsync(buffer.AsMemory(0, read), ctx.RequestAborted);
+                            if (NowMs() - lastProgress >= 250) { lastProgress = NowMs(); ReportTransfer("running"); }
                         }
                     }
                     if (tooLarge) break;
@@ -533,12 +555,14 @@ internal sealed class LinkFlowServer
         catch
         {
             DeleteQuietly(tempPath);
+            if (rawName != null) ReportTransfer("failed", "传输中断，请发送端重试");
             throw;
         }
 
         if (tooLarge)
         {
             DeleteQuietly(tempPath);
+            ReportTransfer("failed", "文件超过接收大小上限");
             await WriteJson(ctx, new { error = $"File exceeds the {AppInfo.MaxUploadBytes / (1024 * 1024)} MB upload limit" }, 413);
             return;
         }
@@ -605,10 +629,11 @@ internal sealed class LinkFlowServer
             DeleteQuietly(movedThumb);
             DeleteQuietly(thumbTemp);
             DeleteQuietly(tempPath);
+            ReportTransfer("failed", "保存失败，请发送端重试");
             throw;
         }
 
-        Broadcast(new { type = "new_message", message = record });
+        Broadcast(new { type = "new_message", message = record, transfer_id = transferId });
         await WriteJson(ctx, new { status = "ok", message = record });
     }
 
@@ -658,6 +683,12 @@ internal sealed class LinkFlowServer
         RequireHost(ctx);
         if (HttpMethods.IsGet(ctx.Request.Method))
         {
+            if (ctx.Request.Query["format"] == "files")
+            {
+                var info = await _host.GetClipboardFileInfo();
+                await WriteJson(ctx, new { names = info.Names, hasImage = info.HasImage });
+                return;
+            }
             string text = await _host.GetClipboardText();
             await WriteJson(ctx, new { status = "ok", text });
             return;
