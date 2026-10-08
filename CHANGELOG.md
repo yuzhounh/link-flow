@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.13 - 2026-10-08
+
+- Settings dialog trimmed to device name (input on the right), auto-save to clipboard and dark mode; descriptions removed.
+- Settings dialog and the phone long-press sheet share one style (20px radius, 16px text, line icons); the sheet is vertically centred on the pressed card.
+- Windows app and Android APK both 0.3.13 (APK versionCode 12).
+
 ## 0.3.12 - 2026-10-08
 
 - Version unified: Windows app and Android APK are both 0.3.12 (APK versionCode 11).
