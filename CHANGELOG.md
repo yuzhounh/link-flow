@@ -1,6 +1,18 @@
 # Changelog
 
+## 0.3.12 - 2026-10-08
+
+- Version unified: Windows app and Android APK are both 0.3.12 (APK versionCode 11).
+- Received file cards no longer show a status row; "start/received" toasts are removed on Android and receive failures are shown on the card.
+- Phone: long-press a text or file card for a rounded action sheet (copy / select text / delete, or copy link / re-receive / receive thumbnail / delete); a tap shows nothing. Hover-only action bars no longer stick on touch screens.
+- Switching between month browsing and live messages no longer shows a toast; a new message while browsing another month says "有新消息，请返回实时消息查看".
+- Toasts share one rounded style in the web UI and the APK: light blue for info, light red for errors.
+
 ## Unreleased
+
+- 0.3.5 mobile: compact cards, fit-to-screen image previews, gallery photo picker, original download filenames and Android system open/install flow; host-only QR pairing and client connection management. APK MIME is explicit rather than generic binary.
+
+- Paste preserves original file names and extensions. Raw clipboard images without an original file name use `Image_<timestamp>`, with an explicit encoding-to-extension mapping. On the Windows host, file-drop metadata takes priority over duplicate bitmap representations; when metadata is unavailable, existing names are preserved. Image compression rules are unchanged.
 
 - Uploaded photos (JPG/PNG/BMP over 300 KB) also get a compressed JPEG copy (long edge up to 1920 px, quality 80, EXIF rotation applied) stored in `data/thumbs/`. The original is kept unchanged. The file card shows both, and "复制" copies the compressed image while "复制原图" copies the original.
 - Messages now show the sending device's name (for example "iPad" or the PC's name) instead of a generic "手机"/"电脑". Names are guessed automatically and can be changed in settings.

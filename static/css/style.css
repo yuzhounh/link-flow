@@ -215,7 +215,7 @@ header {
   flex-wrap: wrap;
 }
 
-/* Nav, count and "返回实时" flow in one row, wrapping on narrow screens */
+/* Month navigation and record count share the toolbar. The calendar toggles live mode. */
 #history-banner {
   flex-wrap: wrap;
   justify-content: flex-start;
@@ -224,10 +224,6 @@ header {
 
 #history-banner .history-banner-left {
   display: contents;
-}
-
-#history-banner .exit-history-btn {
-  margin-left: auto;
 }
 
 .month-nav {
@@ -374,28 +370,6 @@ header {
   padding: 2px 8px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
-}
-
-.exit-history-btn {
-  background-color: var(--primary);
-  color: #ffffff;
-  border: none;
-  padding: 5px 14px;
-  border-radius: 16px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  box-shadow: 0 2px 6px rgba(36, 161, 222, 0.3);
-  flex-shrink: 0;
-}
-
-.exit-history-btn:hover {
-  background-color: var(--primary-hover);
-  transform: translateY(-1px);
 }
 
 /* Search bar (collapsible) */
@@ -602,12 +576,55 @@ header {
   right: auto;
 }
 
-.bubble-wrapper:hover .bubble-actions,
-.bubble:hover .bubble-actions,
 .bubble-actions.show {
   display: flex;
   align-items: center;
 }
+
+/* Touch screens keep :hover after a tap; only real pointers show actions on hover. */
+@media (hover: hover) {
+  .bubble-wrapper:hover .bubble-actions,
+  .bubble:hover .bubble-actions {
+    display: flex;
+    align-items: center;
+  }
+}
+
+/* Phone file cards: long-press opens this bottom sheet instead of the hover bar. */
+.is-mobile .file-card,
+.is-mobile .bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.is-mobile .bubble.selectable { -webkit-user-select: text; user-select: text; }
+.action-sheet-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.action-sheet {
+  width: 100%;
+  max-width: 520px;
+  background: var(--card-bg);
+  border-radius: 20px;
+  margin: 0 12px max(12px, env(safe-area-inset-bottom));
+  width: calc(100% - 24px);
+  padding: 6px 12px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+.action-sheet button {
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-main);
+  font-size: 16px;
+  padding: 16px 8px;
+  text-align: left;
+}
+.action-sheet button:last-child { border-bottom: 0; }
 
 /* Desktop file cards: the actions sit beside the card (on the free side), stacked vertically. */
 .is-desktop .bubble-wrapper:has(.file-card) .bubble-actions {
@@ -696,6 +713,15 @@ header {
 }
 
 /* Media Cards: File / PDF / Video */
+.file-card.download-active, .file-card.download-complete {
+  background-image: linear-gradient(to right, rgba(36, 161, 222, .14) var(--download-progress, 0%), transparent var(--download-progress, 0%));
+}
+.download-status { font-size: 11px; line-height: 1.5; margin-top: 4px; color: var(--primary); }
+.download-failed .download-status { color: #d94b4b; }
+.file-card.download-complete.download-acknowledged { background-image: none; }
+.file-op-btn.receive-action { width: 40px; height: 40px; flex-shrink: 0; font-size: 10px; }
+.receive-action:disabled { cursor: default; opacity: .65; }
+
 .file-card {
   display: flex;
   align-items: center;
@@ -1032,17 +1058,13 @@ body.is-mobile .tool-buttons {
 }
 
 .chat-input-bottom .send-btn {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   padding: 0;
   border-radius: 50%;
   margin-left: auto;
 }
 
-.chat-input-bottom .send-btn svg {
-  margin-left: 2px;
-  margin-top: 1px;
-}
 
 .send-btn:hover {
   background-color: var(--primary-hover);
@@ -1272,19 +1294,27 @@ body.is-mobile .tool-buttons {
 #lightbox-img {
   max-width: 92vw;
   max-height: 90vh;
+  width: auto;
+  height: auto;
   object-fit: contain;
   border-radius: var(--radius-sm);
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
 }
 
 /* Toast notifications */
+[hidden] { display: none !important; }
+.connection-action { display: block; width: 100%; min-height: 44px; margin-top: 12px; padding: 10px; border-radius: 24px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); cursor: pointer; }
+
 #toast {
   position: fixed;
   top: 76px;
   left: 50%;
   transform: translateX(-50%) translateY(-20px);
-  background-color: rgba(0, 0, 0, 0.85);
-  color: #fff;
+  background-color: var(--primary-light);
+  color: var(--primary-hover);
+  border: 1px solid var(--primary);
+  box-shadow: var(--shadow-md);
+  max-width: calc(100vw - 32px);
   padding: 8px 18px;
   border-radius: 20px;
   font-size: 13px;
@@ -1293,6 +1323,18 @@ body.is-mobile .tool-buttons {
   pointer-events: none;
   transition: all 0.25s ease;
   z-index: 1000;
+}
+
+#toast.error {
+  background-color: #fdecec;
+  color: #c0392b;
+  border-color: #e57373;
+}
+
+[data-theme="dark"] #toast.error {
+  background-color: #3a1a1a;
+  color: #ff8a80;
+  border-color: #c0524a;
 }
 
 #toast.show {
@@ -1305,7 +1347,9 @@ body.is-mobile .tool-buttons {
   position: relative;
   display: inline-block;
   width: 44px;
-  height: 24px;
+  height: 40px;
+  flex: 0 0 44px;
+  margin-left: 12px;
 }
 
 .switch input {
@@ -1317,7 +1361,7 @@ body.is-mobile .tool-buttons {
 .slider {
   position: absolute;
   cursor: pointer;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 8px; left: 0; right: 0; bottom: 8px;
   background-color: #ccc;
   transition: .3s;
   border-radius: 24px;
@@ -1391,16 +1435,21 @@ input:checked + .slider:before {
     max-width: 95%;
   }
   .sender-avatar {
-    width: 38px;
-    height: 38px;
-    font-size: 23px;
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
     border-radius: 9px;
     line-height: 1;
   }
   .bubble {
-    font-size: 15px;
-    padding: 8px 12px;
+    font-size: 14px;
+    padding: 7px 10px;
   }
+  .file-card { padding: 9px 10px; gap: 8px; }
+  .file-icon-box { width: 34px; min-width: 34px; }
+  .file-icon { font-size: 24px; }
+  .file-name { font-size: 13px; }
+  .file-meta { font-size: 11px; }
   /* Bottom input bar on mobile */
   footer {
     padding: 5px 10px calc(6px + env(safe-area-inset-bottom, 0px));
@@ -1434,12 +1483,12 @@ input:checked + .slider:before {
     min-height: 44px;
   }
   .chat-input-bottom .send-btn {
-    width: 38px;
-    height: 38px;
+    width: 34px;
+    height: 34px;
   }
   .chat-input-bottom .send-btn svg {
-    width: 19px;
-    height: 19px;
+    width: 18px;
+    height: 18px;
   }
 }
 
@@ -1567,4 +1616,12 @@ input:checked + .slider:before {
     max-width: 138px !important;
     max-height: 138px !important;
   }
+}
+
+@media (max-width: 360px) {
+  #history-banner { padding-inline: 8px; gap: 6px; }
+  .month-nav { gap: 4px; }
+  .month-dd-btn { gap: 4px; padding-inline: 6px; font-size: 12px; }
+  .month-nav-today { padding-inline: 6px; font-size: 12px; }
+  .history-banner-count { font-size: 11px; padding-inline: 5px; white-space: nowrap; }
 }
