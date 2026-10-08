@@ -168,7 +168,7 @@
         <div class="modal-title">🔗 扫码直连</div>
         <button class="close-btn" id="close-qr-modal">✕</button>
       </div>
-      <div style="font-size:13px;color:var(--text-sub);text-align:center;">
+      <div style="font-size:13px;color:var(--text-sub);text-align:left;">
         请确保设备与这台电脑连接在<strong>同一个 Wi-Fi</strong> 网络下
       </div>
       <div id="qr-canvas-container"></div>
@@ -200,34 +200,25 @@
     <div class="modal-box">
       <div class="modal-header">
         <div class="modal-title">设置</div>
-        <button class="close-btn" id="close-settings-modal">✕</button>
+        <button class="close-btn" id="close-settings-modal" aria-label="关闭"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:14px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-          <div>
-            <div style="font-size:14px;font-weight:500;">本设备名称</div>
-            <div style="font-size:12px;color:var(--text-sub);">显示在本设备发出的消息上，仅对之后的消息生效</div>
-          </div>
-          <input type="text" id="setting-device-name" maxlength="32" autocomplete="off" style="width:130px;font-size:13px;padding:6px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-main);">
+        <div class="setting-row">
+          <div class="setting-label">设备名称</div>
+          <input type="text" id="setting-device-name" class="setting-input" maxlength="32" autocomplete="off">
         </div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <div style="font-size:14px;font-weight:500;">其他设备文本自动存入 PC 剪贴板</div>
-            <div style="font-size:12px;color:var(--text-sub);">其他设备发送的文本直接写入电脑 Windows 剪贴板</div>
-          </div>
+        <div class="setting-row">
+          <div class="setting-label">自动存入剪贴板</div>
           <label class="switch">
             <input type="checkbox" id="setting-auto-clipboard" checked>
             <span class="slider"></span>
           </label>
         </div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <div style="font-size:14px;font-weight:500;">深色模式 (Dark Theme)</div>
-            <div style="font-size:12px;color:var(--text-sub);">随心切换明亮或暗黑外观</div>
-          </div>
+        <div class="setting-row">
+          <div class="setting-label">深色模式</div>
           <label class="switch">
             <input type="checkbox" id="setting-dark-theme">
             <span class="slider"></span>

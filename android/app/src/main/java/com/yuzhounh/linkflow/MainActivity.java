@@ -449,14 +449,20 @@ public class MainActivity extends Activity {
         LinearLayout options = new LinearLayout(this);
         options.setOrientation(LinearLayout.VERTICAL);
         options.setPadding(dp(8), dp(8), dp(8), 0);
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("连接管理")
+        // Fixed dp sizes (not sp) so this card matches the web settings dialog and long-press sheet exactly.
+        TextView title = new TextView(this);
+        title.setText("连接管理");
+        title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 24);
+        title.setTextColor(0xFF191919);
+        title.setPadding(dp(24), dp(24), dp(24), dp(8));
+        AlertDialog dialog = new AlertDialog.Builder(this).setCustomTitle(title)
             .setView(options).setNegativeButton("取消", null).create();
         String[] labels = {"摄像头扫码连接", "粘贴配对链接", "重新连接当前电脑"};
         int[] icons = {R.drawable.ic_scan, R.drawable.ic_link, R.drawable.ic_refresh};
         for (int i = 0; i < labels.length; i++) {
             final int choice = i;
             Button row = new Button(this);
-            row.setText(labels[i]); row.setTextSize(16); row.setAllCaps(false);
+            row.setText(labels[i]); row.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 19); row.setAllCaps(false);
             row.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
             row.setPadding(dp(16), 0, dp(16), 0);
             row.setCompoundDrawablesWithIntrinsicBounds(icons[i], 0, 0, 0);
