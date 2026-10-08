@@ -737,7 +737,7 @@
       // Phones have no hover: long-press a message to get its actions in a sheet; a tap does nothing.
       bubbleWrapper.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        openActionSheet(menuItems);
+        openActionSheet(menuItems, bubbleWrapper);
       });
     }
 
@@ -753,23 +753,36 @@
     }
   }
 
-  function openActionSheet(items) {
+  const SHEET_ICONS = {'link': '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>', 'receive': '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>', 'trash': '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>', 'copy': '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>', 'text': '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>'};
+  const sheetIcon = (name) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SHEET_ICONS[name] || ''}</svg>`;
+
+  // Menu labels keep their emoji for the desktop hover bar; the phone sheet draws line icons instead.
+  const EMOJI_ICON = { '🔗': 'link', '⬇️': 'receive', '🗑️': 'trash', '📋': 'copy', '✂️': 'text' };
+  function openActionSheet(items, anchor) {
     document.querySelector('.action-sheet-mask')?.remove();
     const mask = document.createElement('div');
     mask.className = 'action-sheet-mask';
     const sheet = document.createElement('div');
     sheet.className = 'action-sheet';
+    sheet.style.visibility = 'hidden';
     const close = () => mask.remove();
     for (const item of items) {
+      const [emoji, ...rest] = item.label.split(' ');
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.innerHTML = item.label;
+      btn.innerHTML = sheetIcon(EMOJI_ICON[emoji]) + `<span>${rest.join(' ') || item.label}</span>`;
       btn.onclick = () => { close(); item.handler(); };
       sheet.appendChild(btn);
     }
     mask.addEventListener('click', (e) => { if (e.target === mask) close(); });
     mask.appendChild(sheet);
     document.body.appendChild(mask);
+    // Centre the sheet vertically on the pressed card, kept inside the screen.
+    const rect = anchor ? anchor.getBoundingClientRect() : null;
+    const center = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+    const top = Math.min(Math.max(12, center - sheet.offsetHeight / 2), window.innerHeight - sheet.offsetHeight - 12);
+    sheet.style.top = `${top}px`;
+    sheet.style.visibility = '';
   }
 
   function escapeAndLinkText(text) {

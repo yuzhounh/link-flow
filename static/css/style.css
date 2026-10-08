@@ -599,32 +599,36 @@ header {
   inset: 0;
   z-index: 200;
   background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
 }
 .action-sheet {
-  width: 100%;
-  max-width: 520px;
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  margin: 0 auto;
+  max-width: 420px;
   background: var(--card-bg);
   border-radius: 20px;
-  margin: 0 12px max(12px, env(safe-area-inset-bottom));
-  width: calc(100% - 24px);
-  padding: 6px 12px;
+  padding: 8px;
   box-sizing: border-box;
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
 }
 .action-sheet button {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 56px;
+  padding: 0 16px;
   background: none;
   border: 0;
-  border-bottom: 1px solid var(--border-color);
+  border-radius: 12px;
   color: var(--text-main);
-  font-size: 16px;
-  padding: 16px 8px;
+  font-size: 19px;
   text-align: left;
 }
-.action-sheet button:last-child { border-bottom: 0; }
+.action-sheet button:active { background: var(--border-color); }
+.action-sheet button svg { flex: none; color: var(--text-sub); }
 
 /* Desktop file cards: the actions sit beside the card (on the free side), stacked vertically. */
 .is-desktop .bubble-wrapper:has(.file-card) .bubble-actions {
@@ -1158,13 +1162,12 @@ body.is-mobile .tool-buttons {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: rgba(0, 0, 0, 0.4);
   z-index: 200;
   align-items: center;
   justify-content: center;
   padding: 16px;
   padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-  backdrop-filter: blur(4px);
   overflow-y: auto;
   box-sizing: border-box;
 }
@@ -1175,7 +1178,7 @@ body.is-mobile .tool-buttons {
 
 .modal-box {
   background-color: var(--card-bg);
-  border-radius: var(--radius-lg);
+  border-radius: 20px;
   max-width: 420px;
   width: 100%;
   max-height: calc(100dvh - 32px);
@@ -1198,9 +1201,18 @@ body.is-mobile .tool-buttons {
 }
 
 .modal-title {
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 500;
 }
+
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; }
+.setting-label { font-size: 19px; white-space: nowrap; }
+.setting-input { flex: 1; min-width: 0; max-width: 220px; font-size: 18px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); }
+
+/* The 24/19px sizes match the phone's native dialog; on a PC the rest of the UI is much smaller. */
+.is-desktop .modal-title { font-size: 18px; }
+.is-desktop .setting-label { font-size: 15px; }
+.is-desktop .setting-input { font-size: 14px; padding: 7px 10px; }
 
 .close-btn {
   background: none;
@@ -1410,7 +1422,7 @@ input:checked + .slider:before {
     flex: 1;
   }
   .status-badge {
-    font-size: 13px;
+    font-size: 14px;
   }
   .header-actions {
     gap: 8px;
@@ -1442,14 +1454,14 @@ input:checked + .slider:before {
     line-height: 1;
   }
   .bubble {
-    font-size: 14px;
+    font-size: 15px;
     padding: 7px 10px;
   }
   .file-card { padding: 9px 10px; gap: 8px; }
   .file-icon-box { width: 34px; min-width: 34px; }
   .file-icon { font-size: 24px; }
-  .file-name { font-size: 13px; }
-  .file-meta { font-size: 11px; }
+  .file-name { font-size: 14px; }
+  .file-meta { font-size: 12px; }
   /* Bottom input bar on mobile */
   footer {
     padding: 5px 10px calc(6px + env(safe-area-inset-bottom, 0px));
