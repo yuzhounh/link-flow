@@ -279,6 +279,10 @@
       deferredLiveEvents.push(data);
       return;
     }
+    if (data.type === 'peer_connected') {
+      if (isHost) qrModal.classList.remove('open');
+      return;
+    }
     if (data.type === 'file_receiving') {
       if (!isHost) return;
       let row = document.getElementById(`msg-${data.message.id}`);
