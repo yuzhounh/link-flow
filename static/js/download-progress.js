@@ -1,8 +1,9 @@
 (() => {
   const states = new Map();
   const acknowledgements = new Map();
-  const receiveIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>';
-  const shareIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>';
+  // Shared line icons (icons.js), the same set the rest of the buttons use.
+  const receiveIcon = window.LinkFlowIcons.svg('receive', 18);
+  const shareIcon = window.LinkFlowIcons.svg('share', 18);
   function key(raw) {
     try { const url = new URL(raw, location.href); url.search = ''; url.hash = ''; return url.href; }
     catch (_) { return ''; }
@@ -27,7 +28,7 @@
   function apply(root = document) {
     const cards = root.matches?.('.file-card') ? [root] : root.querySelectorAll('.file-card');
     for (const card of cards) {
-      if (card.dataset.receiving === 'true') continue;
+      if (card.dataset.receiving === 'true' || card.dataset.own === 'true') continue;
       const link = card.querySelector('.file-name[href]');
       const url = key(card.dataset.fileUrl || link?.href);
       if (!url || !link) continue;
@@ -90,7 +91,7 @@
   };
   document.addEventListener('click', event => {
     const card = event.target.closest?.('.file-card');
-    if (!card || card.dataset.receiving === 'true') return;
+    if (!card || card.dataset.receiving === 'true' || card.dataset.own === 'true') return;
     const url = key(card.dataset.fileUrl || card.querySelector('.file-name')?.href);
     const state = stateFor(card, url);
     if (state.status !== 'complete') return;
