@@ -13,8 +13,8 @@ android {
         applicationId 'com.yuzhounh.linkflow'
         minSdk 29
         targetSdk 35
-        versionCode 14
-        versionName '0.3.15'
+        versionCode 15
+        versionName '0.3.16'
     }
     signingConfigs {
         release {

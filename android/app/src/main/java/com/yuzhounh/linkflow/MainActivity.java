@@ -217,6 +217,18 @@ public class MainActivity extends Activity {
         return host.getScheme().equals(uri.getScheme()) && host.getHost().equals(uri.getHost()) && host.getPort() == uri.getPort();
     }
 
+    // Popup type scale shared with the web UI (dp): title 20, body 16, control 15, hint 14.
+    private static final int FS_TITLE = 20, FS_BODY = 16, FS_CTL = 15, FS_HINT = 14;
+
+    private TextView dialogTitle(String text) {
+        TextView title = new TextView(this);
+        title.setText(text);
+        title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, FS_TITLE);
+        title.setTextColor(0xFF191919);
+        title.setPadding(dp(24), dp(24), dp(24), dp(8));
+        return title;
+    }
+
     private void showPairing() { showPairing(false); }
 
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
@@ -237,7 +249,7 @@ public class MainActivity extends Activity {
         content.setPadding(dp(24), dp(12), dp(24), dp(4));
         EditText input = new EditText(this);
         input.setSingleLine(true);
-        input.setTextSize(14);
+        input.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, FS_CTL);
         input.setPadding(dp(12), dp(8), dp(12), dp(8));
         input.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
         input.setHint("粘贴完整配对链接");
@@ -245,7 +257,7 @@ public class MainActivity extends Activity {
         TextView preview = new TextView(this);
         preview.setSingleLine(true);
         preview.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        preview.setTextSize(14);
+        preview.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, FS_CTL);
         preview.setGravity(android.view.Gravity.CENTER_VERTICAL);
         preview.setPadding(dp(12), dp(8), dp(12), dp(8));
         preview.setContentDescription("配对链接，点击编辑");
@@ -275,7 +287,7 @@ public class MainActivity extends Activity {
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(android.view.Gravity.END);
         TextView feedback = new TextView(this);
-        feedback.setTextSize(12);
+        feedback.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, FS_HINT);
         feedback.setTextColor(Color.rgb(90, 108, 122));
         feedback.setPadding(0, dp(8), 0, dp(4));
         content.addView(feedback);
@@ -308,7 +320,7 @@ public class MainActivity extends Activity {
         });
         int position = 0;
         for (Button action : new Button[]{paste, clear, connect, cancel}) {
-            action.setTextSize(14);
+            action.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, FS_CTL);
             action.setMinWidth(0);
             action.setMinimumWidth(0);
             action.setPadding(dp(4), 0, dp(4), 0);
@@ -326,8 +338,13 @@ public class MainActivity extends Activity {
         }
         content.addView(actions);
         summarize.run();
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("连接 LinkFlow 电脑")
-            .setMessage("确认配对链接后连接，点击链接可编辑。")
+        TextView intro = new TextView(this);
+        intro.setText("确认配对链接后连接，点击链接可编辑。");
+        intro.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, FS_HINT);
+        intro.setTextColor(Color.rgb(90, 108, 122));
+        intro.setPadding(0, 0, 0, dp(12));
+        content.addView(intro, 0);
+        AlertDialog dialog = new AlertDialog.Builder(this).setCustomTitle(dialogTitle("连接 LinkFlow 电脑"))
             .setView(content).create();
         dialog.setOnCancelListener(d -> { if (returnToConnections) showConnectionOptions(); });
         cancel.setOnClickListener(v -> dialog.cancel());
@@ -461,19 +478,14 @@ public class MainActivity extends Activity {
         options.setOrientation(LinearLayout.VERTICAL);
         options.setPadding(dp(8), dp(8), dp(8), 0);
         // Fixed dp sizes (not sp) so this card matches the web settings dialog and long-press sheet exactly.
-        TextView title = new TextView(this);
-        title.setText("连接管理");
-        title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 24);
-        title.setTextColor(0xFF191919);
-        title.setPadding(dp(24), dp(24), dp(24), dp(8));
-        AlertDialog dialog = new AlertDialog.Builder(this).setCustomTitle(title)
+        AlertDialog dialog = new AlertDialog.Builder(this).setCustomTitle(dialogTitle("连接管理"))
             .setView(options).setNegativeButton("取消", null).create();
         String[] labels = {"摄像头扫码连接", "粘贴配对链接", "重新连接当前电脑"};
         int[] icons = {R.drawable.ic_scan, R.drawable.ic_link, R.drawable.ic_refresh};
         for (int i = 0; i < labels.length; i++) {
             final int choice = i;
             Button row = new Button(this);
-            row.setText(labels[i]); row.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 19); row.setAllCaps(false);
+            row.setText(labels[i]); row.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, FS_BODY); row.setAllCaps(false);
             row.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
             row.setPadding(dp(16), 0, dp(16), 0);
             row.setCompoundDrawablesWithIntrinsicBounds(icons[i], 0, 0, 0);

@@ -1,4 +1,9 @@
 :root {
+  /* Popup type scale shared by every dialog, menu and dropdown (phone/web; PC is one step smaller below). */
+  --fs-title: 20px;
+  --fs-body: 16px;
+  --fs-ctl: 15px;
+  --fs-hint: 14px;
   --primary: #24a1de;
   --primary-hover: #1e8ec5;
   --primary-light: #e8f5fb;
@@ -20,6 +25,14 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
+}
+
+/* PC and the desktop window: the rest of the UI is small, so popups step down one size. */
+.is-desktop {
+  --fs-title: 18px;
+  --fs-body: 15px;
+  --fs-ctl: 14px;
+  --fs-hint: 13px;
 }
 
 [data-theme="dark"] {
@@ -203,7 +216,7 @@ header {
   padding: 8px 16px;
   background-color: var(--bg-header);
   border-bottom: 1px solid var(--border-color);
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-main);
   z-index: 9;
 }
@@ -235,12 +248,12 @@ header {
 .month-nav-select,
 .month-nav-btn,
 .month-nav-today {
-  height: 30px;
+  height: 36px;
   background: var(--bg-input);
   color: var(--text-main);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: 15px;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -302,7 +315,7 @@ header {
   border: none;
   border-radius: 4px;
   color: var(--text-main);
-  font-size: 13px;
+  font-size: var(--fs-ctl);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -326,7 +339,7 @@ header {
   min-width: 3.4em;
   padding: 1px 9px;
   text-align: center;
-  font-size: 12px;
+  font-size: calc(var(--fs-hint) - 1px);
   font-weight: normal;
   color: #64748b;
   background-color: rgba(100, 116, 139, 0.14);
@@ -340,8 +353,8 @@ header {
 }
 
 .month-nav-btn {
-  width: 30px;
-  font-size: 18px;
+  width: 36px;
+  font-size: 20px;
   line-height: 1;
   padding: 0;
 }
@@ -364,10 +377,10 @@ header {
 }
 
 .history-banner-count {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-sub);
   background: var(--bg-input);
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
 }
@@ -393,12 +406,15 @@ header {
   flex: 1;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  padding: 6px 12px;
+  padding: 8px 14px;
+  min-width: 0;
   background-color: var(--bg-input);
   color: var(--text-main);
   outline: none;
-  font-size: 13px;
+  font-size: 16px;
 }
+/* The clear button stays small so the search box takes the row. */
+#close-search-btn { flex: none; width: 36px; height: 36px; padding: 0; }
 
 /* Chat timeline */
 #chat-history {
@@ -1210,32 +1226,32 @@ body.is-mobile .tool-buttons {
 }
 
 .modal-title {
-  font-size: 24px;
+  font-size: var(--fs-title);
   font-weight: 500;
 }
 
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; }
-.setting-label { font-size: 19px; white-space: nowrap; }
-.setting-input { flex: 1; min-width: 0; max-width: 220px; font-size: 18px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); }
+.setting-label { font-size: var(--fs-body); white-space: nowrap; }
+.setting-input { flex: 1; min-width: 0; max-width: 220px; font-size: var(--fs-body); padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); }
 
 .setting-row[hidden] { display: none; }
-.setting-sub { font-size: 14px; color: var(--text-sub); margin-top: 2px; }
+.modal-title-icon { display: flex; align-items: center; gap: 10px; }
+.modal-title-icon svg { flex: none; color: var(--text-sub); }
+.setting-sub { font-size: var(--fs-hint); color: var(--text-sub); margin-top: 2px; }
 .storage-info { min-width: 0; }
-.danger-text-btn { flex: none; background: none; border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 16px; font-size: 16px; color: #ff4d4f; cursor: pointer; }
+.danger-text-btn { flex: none; background: none; border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 16px; font-size: var(--fs-ctl); color: #ff4d4f; cursor: pointer; }
 .danger-text-btn:hover { background: rgba(255, 77, 79, 0.08); }
-.confirm-text { font-size: 16px; line-height: 1.6; color: var(--text-main); }
+.confirm-text { font-size: var(--fs-body); line-height: 1.6; color: var(--text-main); }
 .confirm-actions { display: flex; gap: 12px; justify-content: flex-end; }
-.confirm-btn { min-width: 96px; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); font-size: 16px; cursor: pointer; }
+.confirm-btn { min-width: 96px; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); font-size: var(--fs-ctl); cursor: pointer; }
 .confirm-btn.danger { border-color: transparent; background: #ff4d4f; color: #fff; }
 .confirm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.is-desktop .setting-sub { font-size: 12px; }
-.is-desktop .danger-text-btn { font-size: 13px; padding: 6px 14px; }
-.is-desktop .confirm-text, .is-desktop .confirm-btn { font-size: 14px; }
-
-/* The 24/19px sizes match the phone's native dialog; on a PC the rest of the UI is much smaller. */
-.is-desktop .modal-title { font-size: 18px; }
-.is-desktop .setting-label { font-size: 15px; }
-.is-desktop .setting-input { font-size: 14px; padding: 7px 10px; }
+.is-desktop .danger-text-btn { padding: 6px 14px; }
+.is-desktop .setting-input { padding: 7px 10px; }
+.modal-hint { font-size: var(--fs-hint); color: var(--text-sub); line-height: 1.6; text-align: left; margin: 0; }
+.modal-text { font-size: var(--fs-body); margin: 0; }
+.connection-action { align-self: stretch; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); font-size: var(--fs-ctl); cursor: pointer; }
+.connection-action:hover { border-color: var(--primary); color: var(--primary); }
 
 .close-btn {
   background: none;
@@ -1269,7 +1285,7 @@ body.is-mobile .tool-buttons {
   border: 1px solid var(--border-color);
   padding: 8px 12px;
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: var(--fs-hint);
   word-break: break-all;
   color: var(--primary);
   font-weight: 500;
@@ -1289,7 +1305,7 @@ body.is-mobile .tool-buttons {
   border: 1px solid var(--border-color);
   background: var(--card-bg);
   color: var(--text-main);
-  font-size: 12px;
+  font-size: var(--fs-hint);
   padding: 4px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -1660,7 +1676,7 @@ input:checked + .slider:before {
 @media (max-width: 360px) {
   #history-banner { padding-inline: 8px; gap: 6px; }
   .month-nav { gap: 4px; }
-  .month-dd-btn { gap: 4px; padding-inline: 6px; font-size: 12px; }
-  .month-nav-today { padding-inline: 6px; font-size: 12px; }
-  .history-banner-count { font-size: 11px; padding-inline: 5px; white-space: nowrap; }
+  .month-dd-btn { gap: 4px; padding-inline: 6px; font-size: 13px; }
+  .month-nav-today { padding-inline: 6px; font-size: 13px; }
+  .history-banner-count { font-size: 12px; padding-inline: 5px; white-space: nowrap; }
 }
