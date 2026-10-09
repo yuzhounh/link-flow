@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.15 - 2026-10-09
+
+- Sender avatars and file-type icons are line icons too (image / video / audio / archive / installer / document / other, each with a muted colour), so they look the same on Android and Windows.
+- File names are one step smaller on every client (13px on PC/web, 14px on phone) so more of a long name stays visible.
+- Phone: text is no longer shrunk to 90% (Android text zoom 100%); meta 13px, message text 16px, file-card buttons 40px.
+- Phone: file cards are 256px wide instead of 280px so they no longer stretch across the screen.
+- Windows app and Android APK both 0.3.15 (APK versionCode 14).
+
+## 0.3.14 - 2026-10-09
+
+- Files and images a device sent itself no longer show "未接收" or a receive button on that device; only incoming files are tracked.
+- Android: the custom device name is stored natively (per app, not per host address), so it survives re-pairing with a new IP. An existing name in the web storage is migrated on first read.
+- Settings (PC): the red full-width clear button is now a quiet "清空记录与文件" row with the record count and size. It opens an in-app confirmation that states what will be deleted, and the red button unlocks after 3 s (Esc / outside click cancels).
+- All card and menu buttons (copy, locate, download, share, link, delete) use one line-icon set (`static/js/icons.js`) on PC, web and phone instead of emoji; a file this device sent itself gets no download button.
+- Windows app and Android APK both 0.3.14 (APK versionCode 13).
+
 ## 0.3.13 - 2026-10-08
 
 - Settings dialog trimmed to device name (input on the right), auto-save to clipboard and dark mode; descriptions removed.

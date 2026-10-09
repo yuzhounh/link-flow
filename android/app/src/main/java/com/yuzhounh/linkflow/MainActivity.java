@@ -56,12 +56,23 @@ public class MainActivity extends Activity {
         web = new WebView(this);
         web.getSettings().setJavaScriptEnabled(true);
         web.getSettings().setDomStorageEnabled(true);
-        web.getSettings().setTextZoom(90);
+        web.getSettings().setTextZoom(100);
         web.getSettings().setUseWideViewPort(true);
         web.getSettings().setLoadWithOverviewMode(true);
         web.getSettings().setAllowFileAccess(false);
         web.getSettings().setAllowContentAccess(true);
         web.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        web.addJavascriptInterface(new Object() {
+            // Device name survives re-pairing: the WebView's localStorage is per host address.
+            @JavascriptInterface public String getDeviceName() {
+                return getSharedPreferences("settings", MODE_PRIVATE).getString("deviceName", "");
+            }
+            @JavascriptInterface public void setDeviceName(String name) {
+                String value = name == null ? "" : name.trim();
+                if (value.length() > 64) value = value.substring(0, 64);
+                getSharedPreferences("settings", MODE_PRIVATE).edit().putString("deviceName", value).apply();
+            }
+        }, "LinkFlowNative");
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
