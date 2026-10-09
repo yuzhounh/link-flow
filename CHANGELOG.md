@@ -1,8 +1,15 @@
 # Changelog
 
+## 0.3.16 - 2026-10-09
+
+- One popup type scale on every client: title 20 / body 16 / control 15 / hint 14 (PC one step smaller: 18 / 15 / 14 / 13). Applies to the settings, scan, connection and clear-all dialogs, the month dropdowns, and the phone's native connection and pairing dialogs (title 24 -> 20, rows 19 -> 16, hints 12 -> 14).
+- PC: the "扫码直连" dialog uses the same scan-frame icon as the phone's connection menu instead of the 🔗 emoji, and its close button is a line icon.
+- Month bar and search bar: larger text (15px selectors, 16px search box), taller controls, and the search box fills the row with a smaller line-icon clear button.
+- Windows app and Android APK both 0.3.16 (APK versionCode 15).
+
 ## 0.3.15 - 2026-10-09
 
-- Sender avatars and file-type icons are line icons too (image / video / audio / archive / installer / document / other, each with a muted colour), so they look the same on Android and Windows.
+- Sender avatars are line icons (phone / desktop / laptop); file cards keep a per-category emoji with many more categories (GIF, APK, PDF, sheets, code, fonts, ...).
 - File names are one step smaller on every client (13px on PC/web, 14px on phone) so more of a long name stays visible.
 - Phone: text is no longer shrunk to 90% (Android text zoom 100%); meta 13px, message text 16px, file-card buttons 40px.
 - Phone: file cards are 256px wide instead of 280px so they no longer stretch across the screen.

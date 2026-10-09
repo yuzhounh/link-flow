@@ -8,7 +8,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>LinkFlow</AssemblyName>
     <RootNamespace>LinkFlow</RootNamespace>
-    <Version>0.3.15</Version>
+    <Version>0.3.16</Version>
     <Product>LinkFlow</Product>
     <ApplicationIcon>static\icon.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
