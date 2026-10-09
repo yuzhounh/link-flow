@@ -56,15 +56,32 @@
     return isMobile ? '移动设备' : '电脑';
   }
 
-  function getDeviceName() {
+  // The Android app keeps the name natively: localStorage is per origin, so a new host address
+  // (new IP after re-pairing) would otherwise start from an empty store and lose the custom name.
+  function savedDeviceName() {
     let saved = '';
+    try { saved = (window.LinkFlowNative && window.LinkFlowNative.getDeviceName()) || ''; } catch (e) { /* bridge unavailable */ }
+    if (saved) return saved;
     try { saved = localStorage.getItem('linkflow_device_name') || ''; } catch (e) { /* storage unavailable */ }
-    return saved || (isHost && hostName ? hostName : guessDeviceName());
+    if (saved) storeDeviceName(saved);
+    return saved;
+  }
+
+  function storeDeviceName(name) {
+    try { window.LinkFlowNative && window.LinkFlowNative.setDeviceName(name); } catch (e) { /* bridge unavailable */ }
+    try {
+      if (name) localStorage.setItem('linkflow_device_name', name);
+      else localStorage.removeItem('linkflow_device_name');
+    } catch (e) { /* storage unavailable */ }
+  }
+
+  function getDeviceName() {
+    return savedDeviceName() || (isHost && hostName ? hostName : guessDeviceName());
   }
 
   function deviceIcon(msg) {
     const kind = msg.device_kind || (msg.sender === 'phone' ? 'mobile' : 'computer');
-    return kind === 'mobile' ? '📱' : kind === 'desktop' ? '🖥️' : '💻';
+    return window.LinkFlowIcons.svg(kind === 'mobile' ? 'mobile' : kind === 'desktop' ? 'desktop' : 'computer', 24, 1.8);
   }
 
   function senderLabel(msg) {
@@ -160,7 +177,9 @@
 
   function applyHostCapabilities() {
     if (settingAutoClipboard) settingAutoClipboard.disabled = !isHost;
-    if (clearAllBtn) clearAllBtn.hidden = !isHost;
+    const clearRow = document.getElementById('clear-all-row');
+    if (clearRow) clearRow.hidden = !isHost;
+    else if (clearAllBtn) clearAllBtn.hidden = !isHost;
     if (openQrBtn) {
       openQrBtn.hidden = false;
       openQrBtn.title = isHost ? '扫码连接' : '连接管理';
@@ -197,10 +216,7 @@
   if (settingDeviceName) {
     settingDeviceName.addEventListener('change', () => {
       const name = settingDeviceName.value.trim();
-      try {
-        if (name) localStorage.setItem('linkflow_device_name', name);
-        else localStorage.removeItem('linkflow_device_name');
-      } catch (e) { /* storage unavailable */ }
+      storeDeviceName(name);
       settingDeviceName.value = getDeviceName();
       showToast('设备名称已更新');
     });
@@ -457,10 +473,12 @@
     if (chatHistory.scrollTop < 80 && !searchInput.value.trim()) loadOlderMessages();
   }, { passive: true });
 
+  let storageStats = null;
   function updateStorageStats(stats) {
     if (!stats || !storageStatsText) return;
+    storageStats = stats;
     const mb = (stats.total_file_size / (1024 * 1024)).toFixed(1);
-    storageStatsText.textContent = `共保存 ${stats.total_messages} 条记录，文件累计占用 ${mb} MB`;
+    storageStatsText.textContent = `${stats.total_messages} 条记录 · ${mb} MB`;
   }
 
   // 5. Message Timeline Rendering
@@ -571,6 +589,13 @@
     };
   }
 
+  // '📋 复制' -> small line icon + text, for the desktop hover bar.
+  function menuLabelHtml(label) {
+    const [emoji, ...rest] = label.split(' ');
+    const name = window.LinkFlowIcons.BY_EMOJI[emoji];
+    return name ? `${window.LinkFlowIcons.svg(name, 14)}<span>${rest.join(' ')}</span>` : label;
+  }
+
   function appendMessageToUI(msg, autoScroll = true) {
     const isSelf = (msg.sender === currentDevice());
     const row = document.createElement('div');
@@ -581,7 +606,7 @@
     const avatar = document.createElement('div');
     avatar.className = 'sender-avatar';
     // Phone icon for phones and tablets, desktop or laptop icon for computers.
-    avatar.textContent = deviceIcon(msg);
+    avatar.innerHTML = deviceIcon(msg);
 
     // Body container
     const bodyWrap = document.createElement('div');
@@ -611,7 +636,7 @@
       menuItems.push({ label, handler });
       const btn = document.createElement('button');
       btn.className = 'action-btn-mini';
-      btn.innerHTML = label;
+      btn.innerHTML = menuLabelHtml(label);
       btn.onclick = (e) => {
         e.stopPropagation();
         handler();
@@ -650,7 +675,7 @@
     menuItems.push({ label: '🗑️ 删除', handler: () => deleteMessage(msg.id, isFileMsg) });
     const delBtn = document.createElement('button');
     delBtn.className = 'action-btn-mini';
-    delBtn.innerHTML = '🗑️ 删除';
+    delBtn.innerHTML = menuLabelHtml('🗑️ 删除');
     delBtn.onclick = (e) => {
       e.stopPropagation();
       deleteMessage(msg.id, isFileMsg);
@@ -669,26 +694,18 @@
       // Unified file card for all files (PDF, images, videos, audios, archives, docs, etc.)
       bubble.className = 'file-card';
       const ext = (msg.file_name ? msg.file_name.split('.').pop() : 'FILE').toUpperCase();
-      let icon = '📦';
-      if (['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'BMP', 'SVG', 'HEIC', 'ICO', 'AVIF'].includes(ext)) {
-        icon = '🖼️';
-      } else if (ext === 'PDF' || ['DOC', 'DOCX', 'TXT', 'MD', 'XLS', 'XLSX', 'PPT', 'PPTX', 'CSV'].includes(ext)) {
-        icon = '📄';
-      } else if (['MP4', 'MKV', 'MOV', 'AVI', 'WEBM', 'FLV'].includes(ext)) {
-        icon = '🎬';
-      } else if (['MP3', 'WAV', 'FLAC', 'AAC', 'OGG', 'M4A'].includes(ext)) {
-        icon = '🎵';
-      } else if (['ZIP', 'RAR', '7Z', 'TAR', 'GZ', 'BZ2'].includes(ext)) {
-        icon = '📦';
-      }
+      const fileKind = window.LinkFlowIcons.fileType(ext);
+      const icon = window.LinkFlowIcons.fileEmoji(fileKind);
 
       const { baseName, ext: fileExtWithDot } = splitFileName(msg.file_name || 'file');
       bubble.dataset.fileUrl = protectedFileUrl(msg.file_path);
       bubble.dataset.hostReceived = String(isHost && !msg.receiving);
       bubble.dataset.receiving = String(!!msg.receiving);
+      // A file this device sent has nothing to receive here.
+      bubble.dataset.own = String(isSelf);
 
       bubble.innerHTML = `
-        <div class="file-icon-box"><span class="file-icon">${icon}</span><span class="file-ext-label">${escapeHtml(ext)}</span></div>
+        <div class="file-icon-box"><span class="file-icon ft-${fileKind}" aria-hidden="true">${icon}</span><span class="file-ext-label">${escapeHtml(ext)}</span></div>
         <div class="file-info">
           <a class="file-name" href="${protectedFileUrl(msg.file_path)}" target="${isHost ? '_blank' : '_self'}" rel="noopener noreferrer" title="${escapeHtml(msg.file_name || '')}"><span class="file-name-base">${escapeHtml(baseName)}</span><span class="file-name-ext">${escapeHtml(fileExtWithDot)}</span></a>
           ${msg.thumb_path
@@ -697,7 +714,7 @@
           ${msg.thumb_path ? `<a class="file-meta file-thumb-link" href="${protectedThumbUrl(msg.thumb_path)}" target="_blank" rel="noopener noreferrer" title="查看压缩图">压缩图 · ${formatFileSize(msg.thumb_size)}</a>` : ''}
         </div>
         <div class="file-ops">
-          ${hostImage ? `<button class="file-op-btn copy-image-btn" title="${hasThumb ? '复制压缩图' : '复制原图'}">📋</button>` : isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位">📁</button>` : `<a class="file-op-btn" href="${protectedFileUrl(msg.file_path)}" download="${escapeHtml(msg.file_name || '')}" title="下载保存">⬇️</a>`}
+          ${hostImage ? `<button class="file-op-btn copy-image-btn" title="${hasThumb ? '复制压缩图' : '复制原图'}" aria-label="${hasThumb ? '复制压缩图' : '复制原图'}">${window.LinkFlowIcons.svg('copy', 18)}</button>` : isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位" aria-label="在文件夹中定位">${window.LinkFlowIcons.svg('folder', 18)}</button>` : isSelf ? '' : `<a class="file-op-btn" href="${protectedFileUrl(msg.file_path)}" download="${escapeHtml(msg.file_name || '')}" title="下载保存" aria-label="下载保存">${window.LinkFlowIcons.svg('receive', 18)}</a>`}
         </div>
       `;
       if (msg.receiving) {
@@ -757,11 +774,10 @@
     }
   }
 
-  const SHEET_ICONS = {'link': '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>', 'receive': '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>', 'trash': '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>', 'copy': '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>', 'text': '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>'};
-  const sheetIcon = (name) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SHEET_ICONS[name] || ''}</svg>`;
+  const sheetIcon = (name) => window.LinkFlowIcons.svg(name, 22);
 
-  // Menu labels keep their emoji for the desktop hover bar; the phone sheet draws line icons instead.
-  const EMOJI_ICON = { '🔗': 'link', '⬇️': 'receive', '🗑️': 'trash', '📋': 'copy', '✂️': 'text' };
+  // Menu labels start with an emoji only as a key; every surface draws the matching line icon from icons.js.
+  const EMOJI_ICON = window.LinkFlowIcons.BY_EMOJI;
   function openActionSheet(items, anchor) {
     document.querySelector('.action-sheet-mask')?.remove();
     const mask = document.createElement('div');
@@ -1453,15 +1469,52 @@
     }
   });
 
-  clearAllBtn.addEventListener('click', async () => {
-    if (confirm('确定清空所有历史记录和文件吗？此操作无法撤销。')) {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'clear_all' }));
-      } else {
-        await apiFetch('/api/messages', { method: 'DELETE' });
-      }
-      settingsModal.classList.remove('open');
+  // Clear-all: an in-app confirmation that states what is lost; the destructive button unlocks after 3 s.
+  const clearConfirmModal = document.getElementById('clear-confirm-modal');
+  const clearConfirmText = document.getElementById('clear-confirm-text');
+  const clearConfirmOk = document.getElementById('clear-confirm-ok');
+  const clearConfirmCancel = document.getElementById('clear-confirm-cancel');
+  let clearCountdown = null;
+
+  function closeClearConfirm() {
+    clearInterval(clearCountdown);
+    clearConfirmModal.classList.remove('open');
+  }
+
+  clearAllBtn.addEventListener('click', () => {
+    const mb = storageStats ? (storageStats.total_file_size / (1024 * 1024)).toFixed(1) : '?';
+    const count = storageStats ? storageStats.total_messages : '所有';
+    clearConfirmText.textContent = `将删除 ${count} 条记录和 ${mb} MB 的已存文件，包括手机发来的图片与文件。此操作无法恢复。`;
+    let left = 3;
+    clearConfirmOk.disabled = true;
+    clearConfirmOk.textContent = `清空 (${left})`;
+    clearInterval(clearCountdown);
+    clearCountdown = setInterval(() => {
+      left -= 1;
+      if (left > 0) { clearConfirmOk.textContent = `清空 (${left})`; return; }
+      clearInterval(clearCountdown);
+      clearConfirmOk.textContent = '清空';
+      clearConfirmOk.disabled = false;
+    }, 1000);
+    clearConfirmModal.classList.add('open');
+    clearConfirmCancel.focus();
+  });
+
+  clearConfirmCancel.addEventListener('click', closeClearConfirm);
+  clearConfirmModal.addEventListener('click', e => { if (e.target === clearConfirmModal) closeClearConfirm(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && clearConfirmModal.classList.contains('open')) closeClearConfirm();
+  });
+
+  clearConfirmOk.addEventListener('click', async () => {
+    if (clearConfirmOk.disabled) return;
+    closeClearConfirm();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'clear_all' }));
+    } else {
+      await apiFetch('/api/messages', { method: 'DELETE' });
     }
+    settingsModal.classList.remove('open');
   });
 
   // 12. Lightbox Image

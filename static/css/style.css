@@ -470,6 +470,7 @@ header {
   font-size: 26px;
   line-height: 1;
   flex-shrink: 0;
+  color: var(--text-sub);
   box-shadow: var(--shadow-sm);
   user-select: none;
 }
@@ -754,6 +755,8 @@ header {
 }
 
 .file-icon {
+  display: block;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
   font-size: 28px;
   line-height: 1;
 }
@@ -772,7 +775,7 @@ header {
 }
 
 .file-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-main);
   text-decoration: none;
@@ -851,6 +854,12 @@ header {
   background: var(--primary);
   color: #fff;
   border-color: var(--primary);
+}
+
+.file-op-btn.copy-image-btn svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 /* PDF Card */
@@ -1209,6 +1218,20 @@ body.is-mobile .tool-buttons {
 .setting-label { font-size: 19px; white-space: nowrap; }
 .setting-input { flex: 1; min-width: 0; max-width: 220px; font-size: 18px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); }
 
+.setting-row[hidden] { display: none; }
+.setting-sub { font-size: 14px; color: var(--text-sub); margin-top: 2px; }
+.storage-info { min-width: 0; }
+.danger-text-btn { flex: none; background: none; border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 16px; font-size: 16px; color: #ff4d4f; cursor: pointer; }
+.danger-text-btn:hover { background: rgba(255, 77, 79, 0.08); }
+.confirm-text { font-size: 16px; line-height: 1.6; color: var(--text-main); }
+.confirm-actions { display: flex; gap: 12px; justify-content: flex-end; }
+.confirm-btn { min-width: 96px; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); font-size: 16px; cursor: pointer; }
+.confirm-btn.danger { border-color: transparent; background: #ff4d4f; color: #fff; }
+.confirm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.is-desktop .setting-sub { font-size: 12px; }
+.is-desktop .danger-text-btn { font-size: 13px; padding: 6px 14px; }
+.is-desktop .confirm-text, .is-desktop .confirm-btn { font-size: 14px; }
+
 /* The 24/19px sizes match the phone's native dialog; on a PC the rest of the UI is much smaller. */
 .is-desktop .modal-title { font-size: 18px; }
 .is-desktop .setting-label { font-size: 15px; }
@@ -1454,14 +1477,18 @@ input:checked + .slider:before {
     line-height: 1;
   }
   .bubble {
-    font-size: 15px;
-    padding: 7px 10px;
+    font-size: 16px;
+    padding: 8px 12px;
   }
-  .file-card { padding: 9px 10px; gap: 8px; }
-  .file-icon-box { width: 34px; min-width: 34px; }
-  .file-icon { font-size: 24px; }
+  /* Phone cards: larger text in a narrower card (was 280px wide with 14/12px text under 90% text zoom). */
+  .file-card { padding: 10px 10px; gap: 10px; width: 256px; }
+  .file-icon-box { width: 36px; min-width: 36px; }
+  .file-icon { font-size: 26px; }
+  .file-ext-label { font-size: 11px; }
   .file-name { font-size: 14px; }
-  .file-meta { font-size: 12px; }
+  .file-meta { font-size: 13px; }
+  .download-status { font-size: 12px; }
+  .file-op-btn { width: 40px; height: 40px; }
   /* Bottom input bar on mobile */
   footer {
     padding: 5px 10px calc(6px + env(safe-area-inset-bottom, 0px));
