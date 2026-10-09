@@ -907,6 +907,12 @@ internal sealed class LinkFlowServer
         using var socket = await ctx.WebSockets.AcceptWebSocketAsync();
         var client = new WsClient(socket, RemoteIp(ctx), IsHost(ctx));
         _clients[client] = 0;
+        if (!client.IsHost)
+        {
+            // Let the PC window know a device just connected, so it can close the pairing QR dialog.
+            string joined = Json(new { type = "peer_connected" });
+            foreach (var host in _clients.Keys.Where(c => c.IsHost)) host.Send(joined);
+        }
         client.Send(Json(new
         {
             type = "connected",
