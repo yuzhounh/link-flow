@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.17 - 2026-10-11
+
+- File cards: the file name is regular weight instead of medium, and the size / status lines under it are one step smaller (size 12 → 11 PC, 13 → 12 phone; status 11 → 10 PC, 12 → 11 phone).
+- Popups opened from the four header buttons (scan, month, search, settings) are one step smaller: title -2px, body / control / hint -1px; month selectors 14px, record count 13px, search box 15px. The "设置" title is bold.
+- The record count "共 N 条" in the month bar is right-aligned.
+- Windows app and Android APK both 0.3.17 (APK versionCode 16).
+
 ## 0.3.16 - 2026-10-09
 
 - One popup type scale on every client: title 20 / body 16 / control 15 / hint 14 (PC one step smaller: 18 / 15 / 14 / 13). Applies to the settings, scan, connection and clear-all dialogs, the month dropdowns, and the phone's native connection and pairing dialogs (title 24 -> 20, rows 19 -> 16, hints 12 -> 14).
