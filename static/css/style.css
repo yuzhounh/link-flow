@@ -35,6 +35,23 @@
   --fs-hint: 13px;
 }
 
+/* Popups opened from the four header buttons (scan, month, search, settings) are one step smaller. */
+#qr-modal, #settings-modal, #clear-confirm-modal {
+  --fs-title: 18px;
+  --fs-body: 15px;
+  --fs-ctl: 14px;
+  --fs-hint: 13px;
+}
+.is-desktop #qr-modal, .is-desktop #settings-modal, .is-desktop #clear-confirm-modal {
+  --fs-title: 16px;
+  --fs-body: 14px;
+  --fs-ctl: 13px;
+  --fs-hint: 12px;
+}
+#history-banner { --fs-ctl: 14px; --fs-hint: 13px; }
+.is-desktop #history-banner { --fs-ctl: 13px; --fs-hint: 12px; }
+#settings-modal .modal-title { font-weight: 700; }
+
 [data-theme="dark"] {
   --primary: #38bdf8;
   --primary-hover: #0ea5e9;
@@ -253,7 +270,7 @@ header {
   color: var(--text-main);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  font-size: 15px;
+  font-size: 14px;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -377,7 +394,8 @@ header {
 }
 
 .history-banner-count {
-  font-size: 14px;
+  margin-left: auto;
+  font-size: 13px;
   color: var(--text-sub);
   background: var(--bg-input);
   padding: 3px 10px;
@@ -411,7 +429,7 @@ header {
   background-color: var(--bg-input);
   color: var(--text-main);
   outline: none;
-  font-size: 16px;
+  font-size: 15px;
 }
 /* The clear button stays small so the search box takes the row. */
 #close-search-btn { flex: none; width: 36px; height: 36px; padding: 0; }
@@ -737,7 +755,7 @@ header {
 .file-card.download-active, .file-card.download-complete {
   background-image: linear-gradient(to right, rgba(36, 161, 222, .14) var(--download-progress, 0%), transparent var(--download-progress, 0%));
 }
-.download-status { font-size: 11px; line-height: 1.5; margin-top: 4px; color: var(--primary); }
+.download-status { font-size: 10px; line-height: 1.5; margin-top: 4px; color: var(--primary); }
 .download-failed .download-status { color: #d94b4b; }
 .file-card.download-complete.download-acknowledged { background-image: none; }
 .file-op-btn.receive-action { width: 40px; height: 40px; flex-shrink: 0; font-size: 10px; }
@@ -792,7 +810,7 @@ header {
 
 .file-name {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-main);
   text-decoration: none;
   display: flex;
@@ -826,7 +844,7 @@ header {
 }
 
 .file-meta {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-sub);
   margin-top: 2px;
   white-space: nowrap;
@@ -1502,8 +1520,8 @@ input:checked + .slider:before {
   .file-icon { font-size: 26px; }
   .file-ext-label { font-size: 11px; }
   .file-name { font-size: 14px; }
-  .file-meta { font-size: 13px; }
-  .download-status { font-size: 12px; }
+  .file-meta { font-size: 12px; }
+  .download-status { font-size: 11px; }
   .file-op-btn { width: 40px; height: 40px; }
   /* Bottom input bar on mobile */
   footer {

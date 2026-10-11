@@ -1,6 +1,6 @@
 # LinkFlow Android 配套客户端
 
-Android 10 及以上可安装，通用 APK，无 CPU 架构限制。版本 0.3.16，包名 `com.yuzhounh.linkflow`。
+Android 10 及以上可安装，通用 APK，无 CPU 架构限制。版本 0.3.17，包名 `com.yuzhounh.linkflow`。
 
 这是 Windows LinkFlow 的手机客户端，电脑需要持续运行 LinkFlow，手机与电脑需在可互通的局域网中。界面、消息和文件由电脑提供；APK 不包含 Windows 服务端，不支持手机独立作为传输服务器。
 
