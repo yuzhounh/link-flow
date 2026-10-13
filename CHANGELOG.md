@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.18 - 2026-10-11
+
+- Android startup immediately shows a local connection screen, with a 4-second host-probe deadline and a 6-second page-readiness deadline. Offline errors stay on the page with retry/change-computer actions and retain the saved pairing.
+- Foreground phones automatically reconnect when the paired PC starts: the ready PC emits three finite LAN startup notifications; a fresh HMAC challenge verifies the paired host before invoking the existing connection flow. No periodic phone availability polling, cloud push or background service is added.
+- Discovery uses IPv4 UDP (PC 5840, phone 5839), the original paired IP and existing pairing secret. A changed PC address, blocked LAN broadcast or discovery port requires manual retry/re-pairing. Closing or cancelling the phone's waiting screen releases its listener.
+- Startup, retry, scan and pasted links share the bounded authenticated probe. New links are saved only after validation; stale/cancelled attempts cannot override a newer connection.
+- Windows and Android are both 0.3.18 (APK versionCode 17). Debug verification uses a separate package from the installed release app.
+
 ## 0.3.17 - 2026-10-11
 
 - File cards: the file name is regular weight instead of medium, and the size / status lines under it are one step smaller (size 12 → 11 PC, 13 → 12 phone; status 11 → 10 PC, 12 → 11 phone).

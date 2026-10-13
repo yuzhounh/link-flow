@@ -29,6 +29,19 @@ public class MainActivity extends Activity {
     private FileDownloads downloads;
     private AutoReceiver autoReceiver;
     private boolean returnToConnectionsAfterScan;
+    private FrameLayout surface;
+    private ConnectionScreen connectionScreen;
+    private final android.os.Handler connectionHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private HostProbe probe;
+    private int connectionAttempt;
+    private boolean pageLoading, pageReady;
+    private String retryUrl = "";
+    private boolean retrySavesPairing;
+    private AlertDialog pairingDialog;
+    private HostAvailability availability;
+    private String availabilityPairing = "";
+    private int availabilityEpoch;
+    private boolean foreground, allowAutoConnect = true;
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -53,6 +66,36 @@ public class MainActivity extends Activity {
                 return insets;
             });
         }
+        surface = new FrameLayout(this);
+        connectionScreen = new ConnectionScreen(this, this::startScan, () -> {
+            if (probe != null || pageLoading) cancelConnection();
+            if (pairingUrl.isEmpty() && retryUrl.isEmpty()) showPairing(); else showConnectionOptions();
+        }, () -> connect(retryUrl, retrySavesPairing), this::cancelConnection);
+        surface.addView(connectionScreen, new FrameLayout.LayoutParams(-1, -1));
+        root.addView(surface, new LinearLayout.LayoutParams(-1, 0, 1));
+        setContentView(root);
+        androidx.core.view.WindowCompat.getInsetsController(getWindow(), root).setAppearanceLightStatusBars(true);
+        androidx.core.view.WindowCompat.getInsetsController(getWindow(), root).setAppearanceLightNavigationBars(true);
+        pairingUrl = getPreferences(MODE_PRIVATE).getString("pairingUrl", "");
+        showingWelcome = true;
+        if (pairingUrl.isEmpty()) connectionScreen.welcome(); else connectionScreen.busy(false);
+        // Let the local screen draw once before WebView initialization can occupy the UI thread.
+        root.getViewTreeObserver().addOnDrawListener(new android.view.ViewTreeObserver.OnDrawListener() {
+            private boolean queued;
+            @Override public void onDraw() {
+                if (queued) return;
+                queued = true;
+                root.post(() -> {
+                    root.getViewTreeObserver().removeOnDrawListener(this);
+                    if (isFinishing() || isDestroyed()) return;
+                    initializeWebView();
+                    if (!pairingUrl.isEmpty()) connectToHost();
+                });
+            }
+        });
+    }
+
+    private void initializeWebView() {
         web = new WebView(this);
         web.getSettings().setJavaScriptEnabled(true);
         web.getSettings().setDomStorageEnabled(true);
@@ -113,22 +156,27 @@ public class MainActivity extends Activity {
                 return true;
             }
             @Override public void onPageFinished(WebView view, String url) {
-                if (sameServer(Uri.parse(url))) {
+                if ((pageReady || pageLoading) && sameServer(Uri.parse(url))) {
                     view.evaluateJavascript("window.LinkFlowAndroid = true; window.LinkFlowDownloads && window.LinkFlowDownloads.apply()", null);
                     try {
                         String version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
                         view.evaluateJavascript("window.LinkFlowAppVersion=" + org.json.JSONObject.quote(version)
                             + ";{const label=document.getElementById('app-version-text');if(label)label.textContent='LinkFlow v'+window.LinkFlowAppVersion;}", null);
                     } catch (android.content.pm.PackageManager.NameNotFoundException ignored) { }
-                    downloads.refreshAll();
-                    autoReceiver.refresh(pairingUrl, web.getSettings().getUserAgentString());
                 }
             }
             @Override public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err) {
-                if (req.isForMainFrame()) {
-                    toast("连接失败，请确认电脑已运行 LinkFlow，并连接同一个 Wi-Fi", true);
-                    showWelcome();
-                }
+                if (currentNavigation(req)) connectionFailed("暂时无法连接电脑", networkHint());
+            }
+            @Override public void onReceivedHttpError(WebView view, WebResourceRequest req, WebResourceResponse response) {
+                if (!currentNavigation(req)) return;
+                if (response.getStatusCode() == 401) connectionFailed("配对已失效", "请重新扫码或粘贴新的配对链接。", true);
+                else connectionFailed("界面加载失败", "电脑端未能提供界面，请重试连接。");
+            }
+            @Override public void onReceivedSslError(WebView view, SslErrorHandler handler, android.net.http.SslError error) {
+                handler.cancel();
+                if (pageLoading && matchesAttempt(Uri.parse(error.getUrl())))
+                    connectionFailed("无法安全连接电脑", "电脑地址的证书校验失败，请检查配对地址。");
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
@@ -176,45 +224,205 @@ public class MainActivity extends Activity {
             if (!sameServer(uri)) { toast("只允许下载已配对电脑上的文件", true); return; }
             downloads.request(uri, Uri.parse(pairingUrl).getQueryParameter("token"), userAgent, false);
         });
-        root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
-        androidx.core.view.WindowCompat.getInsetsController(getWindow(), root).setAppearanceLightStatusBars(true);
-        androidx.core.view.WindowCompat.getInsetsController(getWindow(), root).setAppearanceLightNavigationBars(true);
-        pairingUrl = getPreferences(MODE_PRIVATE).getString("pairingUrl", "");
-        if (pairingUrl.isEmpty()) {
-            showWelcome();
-        } else connectToHost();
+        // Render underneath the opaque local screen, so the first revealed frame has content.
+        web.setVisibility(View.VISIBLE);
+        surface.addView(web, 0, new FrameLayout.LayoutParams(-1, -1));
     }
 
     private void showWelcome() {
+        cancelAttempt();
         showingWelcome = true;
-        try (java.io.InputStream input = getAssets().open("welcome.html")) {
-            java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
-            byte[] buffer = new byte[4096];
-            int count;
-            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
-            String html = output.toString("UTF-8");
-            try (java.io.InputStream icon = getAssets().open("icon.png")) {
-                java.io.ByteArrayOutputStream image = new java.io.ByteArrayOutputStream();
-                while ((count = icon.read(buffer)) != -1) image.write(buffer, 0, count);
-                html = html.replace("__APP_ICON__", "data:image/png;base64," + android.util.Base64.encodeToString(image.toByteArray(), android.util.Base64.NO_WRAP));
-            }
-            // Raw HTML (including CSS # colors and Chinese) must not be passed to loadData.
-            web.loadDataWithBaseURL("https://linkflow.invalid/", html, "text/html", "UTF-8", null);
-        } catch (java.io.IOException error) {
-            toast("请点击连接电脑，粘贴完整配对链接", false);
-        }
+        pageReady = false;
+        if (web != null) web.setVisibility(View.INVISIBLE);
+        connectionScreen.setVisibility(View.VISIBLE);
+        connectionScreen.welcome();
     }
 
     private void connectToHost() {
-        showingWelcome = false;
-        web.loadUrl(pairingUrl);
+        connect(pairingUrl, false);
+    }
+
+    private String networkHint() {
+        return "请打开电脑端 LinkFlow，并与手机连接同一局域网。保持此页，电脑上线时会尝试自动连接，也可手动重试。原有配对已保留。";
+    }
+
+    private void stopHostWaiting() {
+        availabilityEpoch++;
+        if (availability != null) availability.close();
+        availability = null; availabilityPairing = "";
+    }
+
+    private void waitForHost() {
+        if (!foreground || !allowAutoConnect || pageReady || !isPairingLink(pairingUrl)) return;
+        if (availability != null && availabilityPairing.equals(pairingUrl)) return;
+        stopHostWaiting();
+        availabilityPairing = pairingUrl;
+        final int epoch = availabilityEpoch;
+        availability = new HostAvailability(this, pairingUrl, target -> root.post(() -> {
+            if (epoch != availabilityEpoch || !foreground || !allowAutoConnect || pageReady || isDestroyed()
+                    || pairingDialog != null) return;
+            if (pageLoading) return;
+            // A verified startup event supersedes a stale in-flight probe immediately.
+            connect(target, true);
+        }));
+    }
+
+    private void cancelAttempt() {
+        connectionAttempt++;
+        connectionHandler.removeCallbacksAndMessages(null);
+        if (probe != null) { probe.cancel(); probe = null; }
+        if (pageLoading && web != null) { web.stopLoading(); web.loadUrl("about:blank"); }
+        pageLoading = false;
+    }
+
+    private void cancelConnection() {
+        allowAutoConnect = false;
+        stopHostWaiting();
+        connectionFailed("已取消连接", "准备好电脑后，点击重试连接即可。");
+    }
+
+    private void connectionFailed(String title, String detail) {
+        connectionFailed(title, detail, false);
+    }
+
+    private void connectionFailed(String title, String detail, boolean unpaired) {
+        cancelAttempt();
+        showingWelcome = true; pageReady = false;
+        if (web != null) web.setVisibility(View.INVISIBLE);
+        connectionScreen.setVisibility(View.VISIBLE);
+        connectionScreen.failed(title, detail, unpaired);
+        if (unpaired) stopHostWaiting();
+        else waitForHost();
+    }
+
+    private int probeHost(String value, java.util.function.Consumer<HostProbe.Result> complete) {
+        cancelAttempt();
+        final int attempt = connectionAttempt;
+        final HostProbe request = new HostProbe();
+        probe = request;
+        Uri link = Uri.parse(value);
+        String endpoint = link.buildUpon().path("/api/system/info").clearQuery().fragment(null).build().toString();
+        Runnable timeout = () -> {
+            if (probe != request || attempt != connectionAttempt) return;
+            request.cancel(); probe = null;
+            complete.accept(new HostProbe.Result(0, ""));
+        };
+        connectionHandler.postDelayed(timeout, 4000);
+        new Thread(() -> {
+            HostProbe.Result result = request.run(endpoint, link.getQueryParameter("token"));
+            connectionHandler.post(() -> {
+                if (isFinishing() || isDestroyed() || probe != request || attempt != connectionAttempt) return;
+                connectionHandler.removeCallbacks(timeout);
+                probe = null;
+                complete.accept(result);
+            });
+        }, "LinkFlowConnect").start();
+        return attempt;
+    }
+
+    private String probeFailure(HostProbe.Result result) {
+        if (result.status == HostProbe.UNPAIRED) return "配对已失效，请重新扫码或粘贴新链接";
+        if (result.status != HostProbe.OK) return networkHint();
+        try {
+            org.json.JSONObject info = new org.json.JSONObject(result.body);
+            if ("ok".equals(info.optString("status")) && info.has("host_name") && info.has("version")) return null;
+        } catch (org.json.JSONException ignored) { }
+        return "链接不是可用的 LinkFlow 服务，请检查配对地址。";
+    }
+
+    private void connect(String value, boolean savePairing) {
+        if (!isPairingLink(value)) { showWelcome(); return; }
+        allowAutoConnect = true;
+        if (savePairing) stopHostWaiting();
+        retryUrl = value; retrySavesPairing = savePairing;
+        showingWelcome = true; pageReady = false;
+        web.setVisibility(View.VISIBLE);
+        connectionScreen.setVisibility(View.VISIBLE);
+        connectionScreen.busy(false);
+        probeHost(value, result -> {
+            String failure = probeFailure(result);
+            if (failure != null) {
+                connectionFailed(result.status == HostProbe.UNPAIRED ? "配对已失效" : "暂时无法连接电脑", failure,
+                    result.status == HostProbe.UNPAIRED);
+                return;
+            }
+            if (savePairing) savePairing(value);
+            loadHost();
+        });
+        if (!savePairing) waitForHost();
+    }
+
+    private void savePairing(String value) {
+        stopHostWaiting();
+        Uri link = Uri.parse(value.trim());
+        pairingUrl = link.buildUpon().path("/").clearQuery().appendQueryParameter("token", link.getQueryParameter("token")).fragment(null).build().toString();
+        getPreferences(MODE_PRIVATE).edit().putString("pairingUrl", pairingUrl).apply();
+        retryUrl = pairingUrl; retrySavesPairing = false;
+    }
+
+    private void loadHost() {
+        final int attempt = connectionAttempt;
+        pageLoading = true; pageReady = false; showingWelcome = true;
+        web.setVisibility(View.VISIBLE);
+        connectionScreen.setVisibility(View.VISIBLE);
+        connectionScreen.busy(true);
+        // The per-navigation ID also prevents a previous load's callbacks from winning a retry.
+        Uri link = Uri.parse(pairingUrl);
+        String target = link.buildUpon().clearQuery().appendQueryParameter("token", link.getQueryParameter("token"))
+            .appendQueryParameter("lf_attempt", String.valueOf(attempt)).build().toString();
+        web.loadUrl(target);
+        connectionHandler.postDelayed(() -> {
+            if (attempt == connectionAttempt && pageLoading)
+                connectionFailed("界面加载超时", "电脑已响应，但界面尚未准备好，请重试连接。");
+        }, 6000);
+        checkPageReady(attempt);
+    }
+
+    private boolean matchesAttempt(Uri uri) {
+        return sameServer(uri) && String.valueOf(connectionAttempt).equals(uri.getQueryParameter("lf_attempt"));
+    }
+
+    private boolean currentNavigation(WebResourceRequest request) {
+        return pageLoading && request.isForMainFrame() && matchesAttempt(request.getUrl());
+    }
+
+    private void checkPageReady(int attempt) {
+        if (attempt != connectionAttempt || !pageLoading || isDestroyed()) return;
+        String ready = "(function(){try{const n=performance.getEntriesByType('navigation')[0];"
+            + "return !!n && new URL(n.name).searchParams.get('lf_attempt')==='" + attempt + "'"
+            + " && document.readyState==='complete' && !!document.getElementById('status-text')"
+            + " && (window.LinkFlowUiReady===true || (typeof window.LinkFlowServerOnline==='boolean' && !!window.LinkFlowDownloads));"
+            + "}catch(e){return false;}})()";
+        web.evaluateJavascript(ready, result -> {
+            if (attempt != connectionAttempt || !pageLoading || isDestroyed()) return;
+            if (!"true".equals(result)) {
+                // This only checks local DOM readiness; it sends no network request to the PC.
+                connectionHandler.postDelayed(() -> checkPageReady(attempt), 100);
+                return;
+            }
+            web.postVisualStateCallback(attempt, new WebView.VisualStateCallback() {
+                @Override public void onComplete(long id) {
+                    if (attempt != connectionAttempt || !pageLoading || isDestroyed()) return;
+                    web.postOnAnimation(() -> {
+                        if (attempt != connectionAttempt || !pageLoading || isDestroyed()) return;
+                        connectionHandler.removeCallbacksAndMessages(null);
+                        pageLoading = false; pageReady = true; showingWelcome = false;
+                        stopHostWaiting();
+                        connectionScreen.setVisibility(View.GONE);
+                        web.clearHistory();
+                        downloads.refreshAll();
+                        autoReceiver.refresh(pairingUrl, web.getSettings().getUserAgentString());
+                    });
+                }
+            });
+        });
     }
 
     private boolean sameServer(Uri uri) {
         if (pairingUrl.isEmpty()) return false;
         Uri host = Uri.parse(pairingUrl);
-        return host.getScheme().equals(uri.getScheme()) && host.getHost().equals(uri.getHost()) && host.getPort() == uri.getPort();
+        return host.getScheme() != null && host.getHost() != null && host.getScheme().equals(uri.getScheme())
+            && host.getHost().equals(uri.getHost()) && host.getPort() == uri.getPort();
     }
 
     // Popup type scale shared with the web UI (dp): title 20, body 16, control 15, hint 14.
@@ -346,6 +554,12 @@ public class MainActivity extends Activity {
         content.addView(intro, 0);
         AlertDialog dialog = new AlertDialog.Builder(this).setCustomTitle(dialogTitle("连接 LinkFlow 电脑"))
             .setView(content).create();
+        pairingDialog = dialog;
+        final int[] dialogAttempt = {-1};
+        dialog.setOnDismissListener(d -> {
+            if (probe != null && connectionAttempt == dialogAttempt[0]) cancelAttempt();
+            if (pairingDialog == dialog) pairingDialog = null;
+        });
         dialog.setOnCancelListener(d -> { if (returnToConnections) showConnectionOptions(); });
         cancel.setOnClickListener(v -> dialog.cancel());
         connect.setOnClickListener(v -> {
@@ -354,43 +568,16 @@ public class MainActivity extends Activity {
             connect.setEnabled(false); paste.setEnabled(false); clear.setEnabled(false);
             input.setEnabled(false); preview.setEnabled(false);
             feedback.setText("正在连接电脑…");
-            new Thread(() -> {
-                String failure = null;
-                java.net.HttpURLConnection connection = null;
-                try {
-                    Uri link = Uri.parse(value);
-                    Uri endpoint = link.buildUpon().path("/api/system/info").clearQuery().fragment(null).build();
-                    connection = (java.net.HttpURLConnection)new java.net.URL(endpoint.toString()).openConnection();
-                    connection.setConnectTimeout(8000); connection.setReadTimeout(8000);
-                    connection.setInstanceFollowRedirects(false);
-                    connection.setRequestProperty("X-LinkFlow-Token", link.getQueryParameter("token"));
-                    int status = connection.getResponseCode();
-                    if (status == 401 || status == 403) failure = "配对链接已失效，请重新扫码或粘贴新链接";
-                    else if (status != 200) failure = "电脑端暂时无法连接，请检查 LinkFlow 是否正在运行";
-                    else {
-                        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
-                        try (java.io.InputStream response = connection.getInputStream()) {
-                            byte[] buffer = new byte[4096]; int count;
-                            while ((count = response.read(buffer)) != -1) {
-                                if (bytes.size() + count > 262144) throw new java.io.IOException("response too large");
-                                bytes.write(buffer, 0, count);
-                            }
-                        }
-                        org.json.JSONObject result = new org.json.JSONObject(bytes.toString("UTF-8"));
-                        if (!"ok".equals(result.optString("status"))) failure = "链接不是可用的 LinkFlow 服务";
-                    }
-                } catch (Exception error) { failure = "连接失败，请确认电脑已运行 LinkFlow，且处于同一网络"; }
-                finally { if (connection != null) connection.disconnect(); }
-                final String message = failure;
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed() || !dialog.isShowing()) return;
-                    connect.setEnabled(true); paste.setEnabled(true); clear.setEnabled(true);
-                    input.setEnabled(true); preview.setEnabled(true);
-                    if (message != null) { feedback.setText(message); return; }
-                    acceptPairing(value);
-                    dialog.dismiss();
-                });
-            }, "LinkFlowPairing").start();
+            dialogAttempt[0] = probeHost(value, result -> {
+                if (!dialog.isShowing()) return;
+                connect.setEnabled(true); paste.setEnabled(true); clear.setEnabled(true);
+                input.setEnabled(true); preview.setEnabled(true);
+                String failure = probeFailure(result);
+                if (failure != null) { feedback.setText(failure); return; }
+                savePairing(value);
+                dialog.dismiss();
+                loadHost();
+            });
         });
         dialog.setOnShowListener(d -> {
             // Read once on opening, never on focus/resume or while the user edits.
@@ -422,6 +609,7 @@ public class MainActivity extends Activity {
     }
 
     private boolean isPairingLink(String value) {
+        if (value == null) return false;
         try {
             Uri uri = Uri.parse(value.trim());
             return ("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) && uri.getHost() != null
@@ -430,17 +618,15 @@ public class MainActivity extends Activity {
     }
     private boolean acceptPairing(String value) {
         if (!isPairingLink(value)) return false;
-        Uri uri = Uri.parse(value.trim());
-        pairingUrl = uri.buildUpon().path("/").fragment(null).build().toString();
-        getPreferences(MODE_PRIVATE).edit().putString("pairingUrl", pairingUrl).apply();
-        web.clearHistory();
-        connectToHost();
+        connect(Uri.parse(value.trim()).buildUpon().path("/").fragment(null).build().toString(), true);
         return true;
     }
     private void startScan() {
         startScan(false);
     }
     private void startScan(boolean returnToConnections) {
+        allowAutoConnect = false;
+        stopHostWaiting();
         returnToConnectionsAfterScan = returnToConnections;
         new IntentIntegrator(this).setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
             .setPrompt("扫描电脑 LinkFlow 的配对二维码").setBeepEnabled(false)
@@ -538,17 +724,31 @@ public class MainActivity extends Activity {
     }
     @Override protected void onResume() {
         super.onResume();
+        foreground = true;
         if (downloads != null) downloads.resume();
-        if (autoReceiver != null && !showingWelcome) autoReceiver.refresh(pairingUrl, web.getSettings().getUserAgentString());
-        if (web != null && !showingWelcome) web.evaluateJavascript("window.dispatchEvent(new Event('linkflow-resume'))", null);
+        if (autoReceiver != null && pageReady) autoReceiver.refresh(pairingUrl, web.getSettings().getUserAgentString());
+        if (web != null && pageReady) web.evaluateJavascript("window.dispatchEvent(new Event('linkflow-resume'))", null);
+        if (web != null) waitForHost();
     }
-    @Override public void onBackPressed() { if (web.canGoBack()) web.goBack(); else super.onBackPressed(); }
-    @Override protected void onPause() { downloads.pause(); super.onPause(); }
+    @Override public void onBackPressed() {
+        if (probe != null || pageLoading) cancelConnection();
+        else if (pageReady && web != null && web.canGoBack()) web.goBack();
+        else super.onBackPressed();
+    }
+    @Override protected void onPause() {
+        foreground = false;
+        stopHostWaiting();
+        if (probe != null && pairingDialog != null) pairingDialog.cancel();
+        if (probe != null || pageLoading) connectionFailed("连接已暂停", "返回后点击重试连接即可。");
+        downloads.pause(); super.onPause();
+    }
     @Override protected void onDestroy() {
+        stopHostWaiting();
+        cancelAttempt();
         if (pendingFiles != null) pendingFiles.onReceiveValue(null);
         autoReceiver.close();
         downloads.close();
-        web.destroy();
+        if (web != null) web.destroy();
         super.onDestroy();
     }
     private void toast(String message, boolean error) { Notice.show(this, message, error); }

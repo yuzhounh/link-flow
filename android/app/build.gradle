@@ -13,8 +13,8 @@ android {
         applicationId 'com.yuzhounh.linkflow'
         minSdk 29
         targetSdk 35
-        versionCode 16
-        versionName '0.3.17'
+        versionCode 17
+        versionName '0.3.18'
     }
     signingConfigs {
         release {
@@ -26,7 +26,10 @@ android {
             }
         }
     }
-    buildTypes { release { signingConfig signingConfigs.release } }
+    buildTypes {
+        release { signingConfig signingConfigs.release }
+        debug { applicationIdSuffix '.startupcheck' }
+    }
 }
 dependencies {
     implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
