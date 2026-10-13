@@ -68,6 +68,7 @@ internal sealed class LinkFlowServer
     private List<string> _allIps = new();
     private HashSet<string> _localIps = new();
     private volatile bool _autoClipboard = true;
+    private HostDiscovery? _discovery;
 
     public LinkFlowServer(AppPaths paths, IHostBridge host)
     {
@@ -142,10 +143,18 @@ internal sealed class LinkFlowServer
         await app.StartAsync();
         _app = app;
         Port = port;
+        try {
+            _discovery = new HostDiscovery(_token, port, _allIps);
+            _discovery.Start();
+        } catch (SocketException error) {
+            AppLog.Warn(Category, "Startup notifications unavailable; manual connection remains usable", error);
+        }
     }
 
     public async Task StopAsync()
     {
+        _discovery?.Dispose();
+        _discovery = null;
         foreach (var client in _clients.Keys)
         {
             try { client.Socket.Abort(); } catch { }

@@ -1742,4 +1742,5 @@
   // Initialize
   initSingleInstance();
   connectWebSocket();
+  window.LinkFlowUiReady = true;
 })();
