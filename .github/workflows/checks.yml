@@ -1,0 +1,19 @@
+name: Transfer checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: dotnet run --project tests/UploadRegression/UploadRegression.csproj --configuration Release
+      - run: dotnet run --project tests/TransferRegression/TransferRegression.csproj --configuration Release
+      - run: node --test tests/clipboard-files.test.cjs
