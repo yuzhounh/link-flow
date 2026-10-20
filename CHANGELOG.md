@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.19 - 2026-10-20
+
+- Maintenance release: the connection behavior is unchanged from 0.3.18. Adds the offline regression-check workflow (host probe, transfer, upload and clipboard checks) to the repository.
+- Windows and Android are both 0.3.19 (APK versionCode 18).
+
 ## 0.3.18 - 2026-10-11
 
 - Android startup immediately shows a local connection screen, with a 4-second host-probe deadline and a 6-second page-readiness deadline. Offline errors stay on the page with retry/change-computer actions and retain the saved pairing.
