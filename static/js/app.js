@@ -16,6 +16,8 @@
     document.body.classList.add('is-desktop');
   }
 
+  const INPUT_BASE_H = isMobile ? 44 : 56;
+
   // 2. State variables
   const queryToken = new URLSearchParams(window.location.search).get('token') || '';
   let authToken = queryToken || localStorage.getItem('linkflow_pairing_token') || '';
@@ -34,6 +36,7 @@
 
   // Device name shown next to this device's messages. Editable in settings, kept in this browser.
   let hostName = '';
+  let wifiName = '';
   let hostKind = '';
 
   // 'mobile' (phone/tablet), 'desktop' or 'computer' (laptop / other computers).
@@ -116,6 +119,10 @@
   const SEARCH_LIMIT = 200;
   let hasMoreOlder = false;
   let loadingOlder = false;
+  let timelineSeq = 0;
+  let loadingView = false;
+  let olderController = null;
+  let viewController = null;
   let searchSeq = 0;
   let searchTimer = null;
 
@@ -130,7 +137,6 @@
   const toast = document.getElementById('toast');
 
   // Month & History Banner DOM
-  const openCalendarBtn = document.getElementById('open-calendar-btn');
   const historyBanner = document.getElementById('history-banner');
   const monthYearDd = document.getElementById('month-year-dd');
   const monthYearBtn = document.getElementById('month-year-btn');
@@ -145,8 +151,6 @@
 
   // Modals
   const qrModal = document.getElementById('qr-modal');
-  const openQrBtn = document.getElementById('open-qr-btn');
-  const hostQrIcon = openQrBtn.innerHTML;
   const closeQrModal = document.getElementById('close-qr-modal');
   const qrUrlText = document.getElementById('qr-url-text');
   const copyUrlBtn = document.getElementById('copy-url-btn');
@@ -156,9 +160,7 @@
   const settingsModal = document.getElementById('settings-modal');
   const openSettingsBtn = document.getElementById('open-settings-btn');
   const closeSettingsModal = document.getElementById('close-settings-modal');
-  const settingAutoClipboard = document.getElementById('setting-auto-clipboard');
   const settingDarkTheme = document.getElementById('setting-dark-theme');
-  const settingDeviceName = document.getElementById('setting-device-name');
   const clearAllBtn = document.getElementById('clear-all-btn');
   const storageStatsText = document.getElementById('storage-stats-text');
   const appVersionText = document.getElementById('app-version-text');
@@ -166,7 +168,6 @@
   const lightboxMask = document.getElementById('lightbox-mask');
   const lightboxImg = document.getElementById('lightbox-img');
 
-  const toggleSearchBtn = document.getElementById('toggle-search-btn');
   const searchBar = document.getElementById('search-bar');
   const searchInput = document.getElementById('search-input');
   const closeSearchBtn = document.getElementById('close-search-btn');
@@ -176,16 +177,9 @@
   const cameraInput = document.getElementById('camera-input');
 
   function applyHostCapabilities() {
-    if (settingAutoClipboard) settingAutoClipboard.disabled = !isHost;
     const clearRow = document.getElementById('clear-all-row');
     if (clearRow) clearRow.hidden = !isHost;
     else if (clearAllBtn) clearAllBtn.hidden = !isHost;
-    if (openQrBtn) {
-      openQrBtn.hidden = false;
-      openQrBtn.title = isHost ? '扫码连接' : '连接管理';
-      openQrBtn.setAttribute('aria-label', openQrBtn.title);
-      openQrBtn.innerHTML = isHost ? hostQrIcon : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="13" rx="2"/><path d="M8 21h8M12 16v5"/></svg>';
-    }
   }
 
   applyHostCapabilities();
@@ -195,13 +189,30 @@
   function applyTheme(isDark) {
     if (isDark) {
       document.documentElement.setAttribute('data-theme', 'dark');
-      if (themeColorMeta) themeColorMeta.content = '#1f1f1f';
+      if (themeColorMeta) themeColorMeta.content = isMobile ? '#14171f' : '#1f1f1f';
       if (settingDarkTheme) settingDarkTheme.checked = true;
     } else {
       document.documentElement.removeAttribute('data-theme');
-      if (themeColorMeta) themeColorMeta.content = '#f7f7f7';
+      if (themeColorMeta) themeColorMeta.content = isMobile ? '#f3f2fa' : '#f7f7f7';
       if (settingDarkTheme) settingDarkTheme.checked = false;
     }
+    syncWindowChrome();
+  }
+
+  // Tells the desktop window (WebView2 host) which colours the native title bar should use, so it blends with the page.
+  function syncWindowChrome() {
+    try {
+      if (!(window.chrome && window.chrome.webview)) return;
+      const css = getComputedStyle(document.documentElement);
+      const ctx = document.createElement('canvas').getContext('2d');
+      const hex = (value) => { ctx.fillStyle = '#000000'; ctx.fillStyle = value.trim(); return ctx.fillStyle; };
+      window.chrome.webview.postMessage({
+        type: 'chrome',
+        bg: hex(css.getPropertyValue('--bg-chat')),
+        fg: hex(css.getPropertyValue('--text-main')),
+        dark: document.documentElement.getAttribute('data-theme') === 'dark'
+      });
+    } catch (e) { /* not inside the desktop window */ }
   }
 
   const savedTheme = localStorage.getItem('linkflow_theme');
@@ -212,21 +223,43 @@
     applyTheme(e.target.checked);
     localStorage.setItem('linkflow_theme', e.target.checked ? 'dark' : 'light');
   });
+  const settingDarkRow = document.getElementById('setting-dark-row');
+  if (settingDarkRow) settingDarkRow.addEventListener('click', () => {
+    settingDarkTheme.checked = !settingDarkTheme.checked;
+    settingDarkTheme.dispatchEvent(new Event('change'));
+  });
 
-  if (settingDeviceName) {
-    settingDeviceName.addEventListener('change', () => {
-      const name = settingDeviceName.value.trim();
-      storeDeviceName(name);
-      settingDeviceName.value = getDeviceName();
-      showToast('设备名称已更新');
-    });
+  // Device name: looks like plain text; tap it to edit in place. Enter or tapping elsewhere saves, Esc cancels.
+  const deviceNameInput = document.getElementById('setting-device-name-text');
+  function refreshDeviceNameText() {
+    if (deviceNameInput && document.activeElement !== deviceNameInput) deviceNameInput.value = getDeviceName();
   }
+  function commitDeviceName() {
+    const name = deviceNameInput.value.trim();
+    if (name && name !== getDeviceName()) {
+      storeDeviceName(name);
+      showToast('设备名称已更新');
+    }
+    deviceNameInput.value = getDeviceName();
+  }
+  deviceNameInput.addEventListener('blur', commitDeviceName);
+  deviceNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); deviceNameInput.blur(); }
+    else if (e.key === 'Escape') { e.stopPropagation(); deviceNameInput.value = getDeviceName(); deviceNameInput.blur(); }
+  });
+  document.getElementById('device-name-row').addEventListener('click', (e) => {
+    if (e.target !== deviceNameInput) deviceNameInput.focus();
+  });
+  refreshDeviceNameText();
 
   // 3. WebSocket Connection
   // Connection state shown in the header: connecting / connected / retrying / unpaired.
   const LONG_DISCONNECT_MS = 30000;
   let disconnectedSince = 0;
   let reconnectTimer = null;
+  let reconnectAttempts = 0;
+  // Back off while the host is unreachable (2.5s, 5s, then 10s) instead of retrying every 2.5s forever.
+  const RECONNECT_DELAYS_MS = [2500, 5000, 10000];
   let liveSyncRunning = false;
   let deferredLiveEvents = [];
 
@@ -237,7 +270,7 @@
     if (state === 'connected') {
       statusDot.classList.add('online');
       // Non-host devices (phone, tablet, other computers) connect to the host PC.
-      statusText.textContent = isHost ? '已连接' : '已连接电脑';
+      statusText.textContent = isHost ? '已连接设备' : '已连接电脑';
     } else if (state === 'retrying') {
       statusDot.classList.add('retrying');
       const long = !isHost && disconnectedSince && Date.now() - disconnectedSince > LONG_DISCONNECT_MS;
@@ -261,6 +294,7 @@
 
     ws.onopen = () => {
       disconnectedSince = 0;
+      reconnectAttempts = 0;
       setConnState('connected');
       loadInitialData();
     };
@@ -282,7 +316,11 @@
         setConnState('unpaired');
       }
       clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(connectWebSocket, 2500);
+      // A hidden page does not retry: resumeSync reconnects as soon as it becomes visible again.
+      if (document.visibilityState === 'hidden') return;
+      const delay = RECONNECT_DELAYS_MS[Math.min(reconnectAttempts, RECONNECT_DELAYS_MS.length - 1)];
+      reconnectAttempts++;
+      reconnectTimer = setTimeout(connectWebSocket, delay);
     };
 
     ws.onerror = (err) => {
@@ -316,7 +354,6 @@
       lanIp = data.lan_ip || location.hostname;
       port = data.port || location.port;
       autoClipboard = data.auto_clipboard;
-      settingAutoClipboard.checked = autoClipboard;
       if (typeof data.is_host === 'boolean') {
         const oldIsHost = isHost;
         isHost = data.is_host;
@@ -329,27 +366,42 @@
     } else if (data.type === 'new_message') {
       if (data.transfer_id) document.getElementById(`msg-${data.transfer_id}`)?.remove();
       const msg = data.message;
+      const msgMonth = getLocalMonthString(msg.timestamp);
+      if (monthCounts[msgMonth] !== undefined && !allMessages.some(m => m.id === msg.id)) monthCounts[msgMonth]++;
       if (isHost && msg.msg_type !== 'text') showToast(`已接收：${msg.file_name}`);
       if (window.LinkFlowAndroid && msg.msg_type !== 'text' && msg.sender === 'pc') window.location.href = 'linkflow://receive';
       if (currentViewMonth) {
-        const msgMonth = getLocalMonthString(msg.timestamp);
         if (msgMonth === currentViewMonth) {
-          appendLiveMessage(msg);
+          if (searchInput.value.trim()) {
+            if (!allMessages.some(m => m.id === msg.id)) allMessages.push(msg);
+            searchInput.dispatchEvent(new Event('input'));
+          } else appendLiveMessage(msg);
           updateHistoryBannerCount();
         } else {
           showToast('有新消息，请返回实时消息查看');
         }
       } else {
-        appendLiveMessage(msg);
+        if (searchInput.value.trim()) {
+          if (!allMessages.some(m => m.id === msg.id)) allMessages.push(msg);
+          searchInput.dispatchEvent(new Event('input'));
+        } else appendLiveMessage(msg);
       }
     } else if (data.type === 'message_deleted') {
+      const deleted = allMessages.find(m => m.id === data.id);
+      const deletedMonth = deleted && getLocalMonthString(deleted.timestamp);
+      if (deletedMonth && monthCounts[deletedMonth] !== undefined) monthCounts[deletedMonth] = Math.max(0, monthCounts[deletedMonth] - 1);
       const row = document.getElementById(`msg-${data.id}`);
       if (row) row.remove();
       allMessages = allMessages.filter(m => m.id !== data.id);
-      if (currentViewMonth) updateHistoryBannerCount();
+      if (currentViewMonth) {
+        if (deleted) updateHistoryBannerCount();
+        else refreshMonthsList().then(updateHistoryBannerCount);
+      }
     } else if (data.type === 'messages_cleared') {
+      cancelTimelineRequests();
       chatHistory.innerHTML = '';
       allMessages = [];
+      monthCounts = {};
       hasMoreOlder = false;
       if (currentViewMonth) exitHistoryMode();
       showToast('聊天记录已清空');
@@ -364,6 +416,7 @@
   async function loadInitialData() {
     if (liveSyncRunning) return;
     liveSyncRunning = true;
+    const seq = timelineSeq;
     try {
       const [msgRes, infoRes] = await Promise.all([
         apiFetch(`/api/messages?limit=${PAGE_SIZE}`, { signal: AbortSignal.timeout(15000) }),
@@ -376,7 +429,7 @@
       }
 
       const msgData = await msgRes.json();
-      if (msgData.status === 'ok' && !currentViewMonth && !searchInput.value.trim()) {
+      if (seq === timelineSeq && msgData.status === 'ok' && !currentViewMonth && !searchInput.value.trim()) {
         applyLiveMessages(msgData.messages);
       }
 
@@ -388,6 +441,8 @@
         autoClipboard = infoData.auto_clipboard;
         maxUploadBytes = infoData.max_upload_bytes || maxUploadBytes;
         hostName = infoData.host_name || '';
+        wifiName = infoData.wifi_name || '';
+        updateQrHint();
         hostKind = infoData.host_kind || '';
         if (infoData.pairing_token) pairingToken = infoData.pairing_token;
         if (appVersionText && (window.LinkFlowAppVersion || infoData.version)) {
@@ -401,11 +456,7 @@
           }
           applyHostCapabilities();
         }
-        if (settingDeviceName) {
-          settingDeviceName.value = getDeviceName();
-          settingDeviceName.placeholder = isHost && hostName ? hostName : guessDeviceName();
-        }
-        settingAutoClipboard.checked = autoClipboard;
+        refreshDeviceNameText();
         updateStorageStats(infoData.stats);
         setupIpSelector();
       }
@@ -425,6 +476,7 @@
     if (document.visibilityState === 'hidden') return;
     // A suspended WebView may retain an OPEN socket which is no longer alive.
     if (ws) { ws.onclose = null; ws.close(); ws = null; }
+    reconnectAttempts = 0;
     connectWebSocket();
     if (searchInput.value.trim()) searchInput.dispatchEvent(new Event('input'));
     else if (currentViewMonth) selectMonth(currentViewMonth);
@@ -440,31 +492,46 @@
     renderMessages(allMessages);
   }
 
+  function cancelTimelineRequests() {
+    timelineSeq++;
+    olderController?.abort();
+    viewController?.abort();
+    olderController = viewController = null;
+    loadingOlder = loadingView = false;
+    return timelineSeq;
+  }
+
   // Prepends the next older page, keeping the viewport where it was.
   async function loadOlderMessages() {
-    if (loadingOlder || currentViewMonth || !hasMoreOlder || allMessages.length === 0) return false;
+    if (loadingOlder || loadingView || searchInput.value.trim() || !hasMoreOlder || allMessages.length === 0) return false;
     loadingOlder = true;
+    const seq = timelineSeq;
+    const controller = olderController = new AbortController();
     try {
-      const beforeTs = allMessages[0].timestamp;
-      const res = await apiFetch(`/api/messages?limit=${PAGE_SIZE}&before_ts=${encodeURIComponent(beforeTs)}`);
+      const first = allMessages[0];
+      const monthArg = currentViewMonth ? `&month=${encodeURIComponent(currentViewMonth)}` : '';
+      const res = await apiFetch(`/api/messages?limit=${PAGE_SIZE}&before_ts=${encodeURIComponent(first.timestamp)}&before_id=${encodeURIComponent(first.id)}${monthArg}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
       const data = await res.json();
-      if (data.status !== 'ok' || currentViewMonth) return false;
-      const older = data.messages || [];
-      hasMoreOlder = older.length >= PAGE_SIZE;
+      if (seq !== timelineSeq || data.status !== 'ok') return false;
+      const page = data.messages || [];
+      const ids = new Set(allMessages.map(m => m.id));
+      const older = page.filter(m => !ids.has(m.id));
+      hasMoreOlder = page.length >= PAGE_SIZE;
+      prependMessages(older);
       allMessages = older.concat(allMessages);
-      renderMessages(allMessages, true);
+      if (!older.length) updateTopHint();
       return older.length > 0;
     } catch (e) {
-      console.error('Failed to load older messages', e);
+      if (e.name !== 'AbortError') console.error('Failed to load older messages', e);
       return false;
     } finally {
-      loadingOlder = false;
+      if (olderController === controller) { olderController = null; loadingOlder = false; }
     }
   }
 
   // A short page may not fill the screen, so there would be nothing to scroll up from.
   async function fillIfShort() {
-    while (!currentViewMonth && hasMoreOlder && chatHistory.scrollHeight <= chatHistory.clientHeight + 40) {
+    while (!loadingView && !searchInput.value.trim() && hasMoreOlder && chatHistory.scrollHeight <= chatHistory.clientHeight + 40) {
       if (!(await loadOlderMessages())) break;
     }
   }
@@ -517,23 +584,16 @@
     const prevTop = chatHistory.scrollTop;
     chatHistory.innerHTML = '';
     let lastDate = '';
-
-    // Live view with everything loaded (not a search result or a single month)
-    if (messages === allMessages && !currentViewMonth && !hasMoreOlder && messages.length > 0) {
-      const hint = document.createElement('div');
-      hint.className = 'timeline-date-divider timeline-top-hint';
-      hint.textContent = '没有更早的记录了';
-      chatHistory.appendChild(hint);
-    }
+    if (messages === allMessages) updateTopHint();
 
     messages.forEach(msg => {
-      const dateStr = formatDateHeader(msg.timestamp);
-      if (dateStr !== lastDate) {
+      const day = new Date(msg.timestamp).toDateString();
+      if (day !== lastDate) {
         const divider = document.createElement('div');
         divider.className = 'timeline-date-divider';
-        divider.textContent = dateStr;
+        divider.textContent = formatDateHeader(msg.timestamp);
         chatHistory.appendChild(divider);
-        lastDate = dateStr;
+        lastDate = day;
       }
       appendMessageToUI(msg, false);
     });
@@ -546,6 +606,42 @@
       // "load older messages" handler and get cancelled halfway.
       chatHistory.scrollTo({ top: chatHistory.scrollHeight, behavior: 'instant' });
     }
+  }
+
+  function updateTopHint() {
+    chatHistory.querySelector('.timeline-top-hint')?.remove();
+    if (hasMoreOlder || !allMessages.length || searchInput.value.trim()) return;
+    const hint = document.createElement('div');
+    hint.className = 'timeline-date-divider timeline-top-hint';
+    hint.textContent = currentViewMonth ? '没有更早的本月记录了' : '没有更早的记录了';
+    chatHistory.prepend(hint);
+  }
+
+  function prependMessages(messages) {
+    if (!messages.length) return;
+    const prevHeight = chatHistory.scrollHeight;
+    const prevTop = chatHistory.scrollTop;
+    const fragment = document.createDocumentFragment();
+    let lastDay = '';
+    for (const msg of messages) {
+      const day = new Date(msg.timestamp).toDateString();
+      if (day !== lastDay) {
+        const divider = document.createElement('div');
+        divider.className = 'timeline-date-divider';
+        divider.textContent = formatDateHeader(msg.timestamp);
+        fragment.appendChild(divider);
+        lastDay = day;
+      }
+      appendMessageToUI(msg, false, fragment);
+    }
+    chatHistory.querySelector('.timeline-top-hint')?.remove();
+    if (allMessages.length && lastDay === new Date(allMessages[0].timestamp).toDateString()) {
+      const divider = chatHistory.firstElementChild;
+      if (divider?.classList.contains('timeline-date-divider')) divider.remove();
+    }
+    chatHistory.prepend(fragment);
+    updateTopHint();
+    chatHistory.scrollTo({ top: prevTop + chatHistory.scrollHeight - prevHeight, behavior: 'instant' });
   }
 
   function formatFileSize(bytes) {
@@ -596,7 +692,7 @@
     return name ? `${window.LinkFlowIcons.svg(name, 14)}<span>${rest.join(' ')}</span>` : label;
   }
 
-  function appendMessageToUI(msg, autoScroll = true) {
+  function appendMessageToUI(msg, autoScroll = true, target = chatHistory) {
     const isSelf = (msg.sender === currentDevice());
     const row = document.createElement('div');
     row.id = `msg-${msg.id}`;
@@ -766,7 +862,7 @@
 
     row.appendChild(avatar);
     row.appendChild(bodyWrap);
-    chatHistory.appendChild(row);
+    target.appendChild(row);
     window.LinkFlowDownloads?.apply(row);
 
     if (autoScroll) {
@@ -840,14 +936,19 @@
         timestamp: Date.now()
       }));
       messageInput.value = '';
-      messageInput.style.height = '56px';
+      messageInput.style.height = INPUT_BASE_H + 'px';
       messageInput.style.overflowY = 'hidden';
+      window.LinkFlowSendMode?.();
     } else {
       showToast('已断开，正在重连…');
     }
   }
 
-  sendBtn.addEventListener('click', sendTextMessage);
+  sendBtn.addEventListener('click', () => {
+    // Phone: the button is "+" while the box is empty (attachments) and turns into send once there is text.
+    if (isMobile && !messageInput.value.trim()) { window.LinkFlowAttachMenu?.(); return; }
+    sendTextMessage();
+  });
 
   messageInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -867,8 +968,8 @@
   // Auto-grow textarea smoothly
   messageInput.addEventListener('input', () => {
     messageInput.style.height = 'auto';
-    const baseH = 56;
-    const maxH = 160;
+    const baseH = INPUT_BASE_H;
+    const maxH = isMobile ? 120 : 160;
     const scrollH = messageInput.scrollHeight;
     const targetH = Math.min(Math.max(scrollH, baseH), maxH);
     messageInput.style.height = targetH + 'px';
@@ -1242,7 +1343,6 @@
     renderQrCode(ipSelect && ipSelect.value ? ipSelect.value : lanIp);
   }
 
-  openQrBtn.addEventListener('click', showQrModal);
   document.getElementById('close-connection-modal').addEventListener('click', () => document.getElementById('connection-modal').classList.remove('open'));
   document.getElementById('reconnect-btn').addEventListener('click', () => {
     document.getElementById('connection-modal').classList.remove('open');
@@ -1250,9 +1350,25 @@
   });
   closeQrModal.addEventListener('click', () => qrModal.classList.remove('open'));
 
+  // The copy button is an icon; it turns into a check mark for a moment after copying.
+  const QR_COPY_SVG = copyUrlBtn.innerHTML;
+  const QR_CHECK_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  let copyIconTimer;
   copyUrlBtn.addEventListener('click', () => {
     copyToClipboard(qrUrlText.textContent);
+    copyUrlBtn.innerHTML = QR_CHECK_SVG;
+    clearTimeout(copyIconTimer);
+    copyIconTimer = setTimeout(() => { copyUrlBtn.innerHTML = QR_COPY_SVG; }, 1500);
   });
+
+  // With the Wi-Fi name known the hint says which network to join; otherwise the generic wording stays.
+  function updateQrHint() {
+    const hint = document.getElementById('qr-hint');
+    if (!hint || !wifiName) return;
+    const name = document.createElement('strong');
+    name.textContent = wifiName;
+    hint.replaceChildren('请确保设备也连接至 Wi-Fi 网络：', name, '。');
+  }
 
   // 10. Month Browsing (toolbar)
   function getLocalMonthString(timestamp) {
@@ -1264,8 +1380,9 @@
 
   function updateHistoryBannerCount() {
     if (historyBannerCount) {
-      historyBannerCount.textContent = `共 ${allMessages.length} 条`;
+      historyBannerCount.textContent = `共 ${monthCounts[currentViewMonth] ?? allMessages.length} 条`;
     }
+    if (typeof updateViewTitle === 'function') updateViewTitle();
   }
 
   // Months offered by the banner navigator: those with records plus the current month, newest first
@@ -1342,7 +1459,6 @@
     });
     bindMonthDropdown(monthMonthDd, monthMonthBtn, monthMonthList, selectMonth);
     document.addEventListener('click', closeMonthDropdowns);
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMonthDropdowns(); });
     monthPrevBtn.addEventListener('click', () => {
       const i = monthsList.indexOf(currentViewMonth);
       if (i >= 0 && i < monthsList.length - 1) selectMonth(monthsList[i + 1]);
@@ -1356,16 +1472,20 @@
 
   async function selectMonth(monthStr) {
     const seq = ++monthSeq;
+    const viewSeq = cancelTimelineRequests();
+    const controller = viewController = new AbortController();
+    loadingView = true;
     try {
       const [res] = await Promise.all([
-        apiFetch(`/api/messages?month=${encodeURIComponent(monthStr)}`),
+        apiFetch(`/api/messages?month=${encodeURIComponent(monthStr)}&limit=${PAGE_SIZE}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) }),
         refreshMonthsList()
       ]);
       const data = await res.json();
-      if (seq !== monthSeq) return;
+      if (seq !== monthSeq || viewSeq !== timelineSeq) return;
       if (data.status === 'ok') {
         currentViewMonth = monthStr;
         allMessages = data.messages || [];
+        hasMoreOlder = allMessages.length >= PAGE_SIZE;
         resetSearchText();
         renderMessages(allMessages);
         updateToolbarState();
@@ -1377,51 +1497,42 @@
         if (currentViewMonth) renderMonthNav(currentViewMonth);
       }
     } catch (err) {
+      if (viewSeq !== timelineSeq || err.name === 'AbortError') return;
       console.error('Failed to select month', err);
       showToast('载入失败，请重试', true);
       if (currentViewMonth) renderMonthNav(currentViewMonth);
+    } finally {
+      if (viewSeq === timelineSeq) { loadingView = false; viewController = null; fillIfShort(); }
     }
   }
 
-  async function exitHistoryMode() {
-    if (currentViewMonth === null) return;
+  async function exitHistoryMode(force = false) {
+    if (currentViewMonth === null && !loadingView && !force) return;
     monthSeq++;
+    const seq = cancelTimelineRequests();
+    const controller = viewController = new AbortController();
+    loadingView = true;
     currentViewMonth = null;
     updateToolbarState();
     if (historyBanner) historyBanner.style.display = 'none';
     try {
-      const res = await apiFetch(`/api/messages?limit=${PAGE_SIZE}`);
+      const res = await apiFetch(`/api/messages?limit=${PAGE_SIZE}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
       const data = await res.json();
-      if (data.status === 'ok') {
+      if (seq === timelineSeq && data.status === 'ok') {
         resetSearchText();
         applyLiveMessages(data.messages);
         fillIfShort();
       }
     } catch (err) {
-      console.error('Failed to exit history mode', err);
+      if (err.name !== 'AbortError') console.error('Failed to exit history mode', err);
+    } finally {
+      if (seq === timelineSeq) { loadingView = false; viewController = null; fillIfShort(); }
     }
-  }
-
-  if (openCalendarBtn) {
-    // Opens the month toolbar on the current month; while it is open, clicking again goes back to live
-    openCalendarBtn.addEventListener('click', () => {
-      if (currentViewMonth) {
-        exitHistoryMode();
-        return;
-      }
-      selectMonth(getLocalMonthString(Date.now()));
-    });
   }
 
   // Highlights the header toggle buttons while their mode is on
   function updateToolbarState() {
-    if (openCalendarBtn) {
-      openCalendarBtn.classList.toggle('active', !!currentViewMonth);
-      openCalendarBtn.title = currentViewMonth ? '返回实时消息' : '按月份浏览';
-      openCalendarBtn.setAttribute('aria-label', openCalendarBtn.title);
-      openCalendarBtn.setAttribute('aria-pressed', String(!!currentViewMonth));
-    }
-    if (toggleSearchBtn) toggleSearchBtn.classList.toggle('active', searchBar.classList.contains('active'));
+    updateViewTitle();
   }
 
   // Switching between live view and a month drops the old query (its results are gone)
@@ -1429,6 +1540,7 @@
     searchInput.value = '';
     searchSeq++;
     clearTimeout(searchTimer);
+    updateViewTitle();
   }
 
   // Close modals on clicking outside mask
@@ -1450,24 +1562,6 @@
   });
 
   closeSettingsModal.addEventListener('click', () => settingsModal.classList.remove('open'));
-
-  settingAutoClipboard.addEventListener('change', async (e) => {
-    autoClipboard = e.target.checked;
-    try {
-      const res = await apiFetch('/api/system/info', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ auto_clipboard: autoClipboard })
-      });
-      if (!res.ok) throw new Error(`Settings update failed: ${res.status}`);
-      showToast(autoClipboard ? '已开启剪贴板自动同步' : '已关闭剪贴板自动同步');
-    } catch (err) {
-      autoClipboard = !autoClipboard;
-      e.target.checked = autoClipboard;
-      showToast('只有电脑端可以修改此设置', true);
-      console.error(err);
-    }
-  });
 
   // Clear-all: an in-app confirmation that states what is lost; the destructive button unlocks after 3 s.
   const clearConfirmModal = document.getElementById('clear-confirm-modal');
@@ -1502,9 +1596,6 @@
 
   clearConfirmCancel.addEventListener('click', closeClearConfirm);
   clearConfirmModal.addEventListener('click', e => { if (e.target === clearConfirmModal) closeClearConfirm(); });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && clearConfirmModal.classList.contains('open')) closeClearConfirm();
-  });
 
   clearConfirmOk.addEventListener('click', async () => {
     if (clearConfirmOk.disabled) return;
@@ -1538,6 +1629,7 @@
   }
 
   function closeSearch() {
+    cancelTimelineRequests();
     setSearchBarOpen(false);
     searchInput.value = '';
     searchSeq++;
@@ -1546,20 +1638,94 @@
     updateToolbarState();
   }
 
-  toggleSearchBtn.addEventListener('click', () => {
-    if (searchBar.classList.contains('active')) {
-      closeSearch();
-    } else {
-      setSearchBarOpen(true);
-      searchInput.focus();
-      updateToolbarState();
-    }
+  closeSearchBtn.addEventListener('click', closeSearch);
+
+  // PC month bar: the close button leaves month browsing and returns to all records.
+  const closeHistoryBtn = document.getElementById('close-history-btn');
+  if (closeHistoryBtn) closeHistoryBtn.addEventListener('click', () => exitHistoryMode());
+
+  // Search is opened from the settings list (the header icon is hidden).
+  // Menu actions shared by the phone menu rows and the PC settings rows (same behaviour on both).
+  function goAllRecords() {
+    const pendingView = loadingView;
+    if (searchInput.value) closeSearch();
+    if (currentViewMonth || pendingView) exitHistoryMode(true);
+  }
+  function browseByMonth() {
+    if (!currentViewMonth) selectMonth(getLocalMonthString(Date.now()));
+  }
+  function openSearch() {
+    setSearchBarOpen(true);
+    searchInput.focus();
+    updateToolbarState();
+  }
+  [
+    [['menu-all', 'setting-open-all'], goAllRecords],
+    [['menu-month', 'setting-open-month'], browseByMonth],
+    [['menu-search', 'setting-open-search'], openSearch],
+    [['menu-switch'], showQrModal]
+  ].forEach(([ids, action]) => ids.forEach((id) => {
+    const row = document.getElementById(id);
+    if (row) row.addEventListener('click', () => {
+      settingsModal.classList.remove('open');
+      action();
+    });
+  }));
+
+  // Connection rows: the connected computer (tap to reconnect and sync) and the pairing / connection entry.
+  const menuHostRow = document.getElementById('menu-host-sync');
+  const menuSwitch = document.getElementById('menu-switch');
+  const menuScan = document.getElementById('menu-scan');
+  const menuPair = document.getElementById('menu-pair');
+  function refreshMenuHost() {
+    const nativeApp = !isHost && !!window.LinkFlowAndroid;
+    menuHostRow.hidden = isHost; // the PC window is the computer itself
+    document.getElementById('menu-host-name').textContent = hostName || location.hostname;
+    document.getElementById('menu-host-sub').textContent = `${statusText.textContent} · ${location.host}`;
+    menuSwitch.hidden = nativeApp;
+    menuScan.hidden = menuPair.hidden = !nativeApp;
+    document.getElementById('menu-switch-label').textContent = isHost ? '显示配对二维码' : (isMobile ? '扫码更换电脑' : '连接管理');
+  }
+  openSettingsBtn.addEventListener('click', refreshMenuHost);
+  menuHostRow.addEventListener('click', () => {
+    menuHostRow.classList.add('spinning');
+    document.getElementById('menu-host-sub').textContent = '正在同步… · ' + location.host;
+    resumeSync();
+    setTimeout(() => { menuHostRow.classList.remove('spinning'); refreshMenuHost(); }, 1500);
   });
 
-  closeSearchBtn.addEventListener('click', closeSearch);
+  // Closes the topmost layer: menu, lightbox, dialog, search, month view. Used by the Android back key and the PC Esc key.
+  function closeTopLayer() {
+    if (document.querySelector('.compact-menu')) {
+      document.querySelectorAll('.compact-menu, .compact-menu-mask').forEach((el) => el.remove());
+      return true;
+    }
+    if (lightboxMask.classList.contains('open')) { lightboxMask.classList.remove('open'); return true; }
+    if (document.querySelector('.month-dd.open')) { closeMonthDropdowns(); return true; }
+    if (clearConfirmModal.classList.contains('open')) { closeClearConfirm(); return true; }
+    for (const id of ['qr-modal', 'connection-modal', 'settings-modal']) {
+      const el = document.getElementById(id);
+      if (el && el.classList.contains('open')) { el.classList.remove('open'); return true; }
+    }
+    if (document.activeElement === searchInput) { searchInput.blur(); return true; }
+    if (searchBar.classList.contains('active')) { closeSearch(); return true; }
+    if (currentViewMonth) { exitHistoryMode(); return true; }
+    return false;
+  }
+  window.LinkFlowBack = closeTopLayer;
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || isMobile) return;
+    const target = e.target;
+    if (target instanceof HTMLElement && target.matches('input, textarea') && target !== searchInput) return;
+    if (closeTopLayer()) e.preventDefault();
+  });
+
+  // Typing in the search box updates the view title on every platform.
+  searchInput.addEventListener('input', updateViewTitle);
 
   // Search runs on the server so it covers records that are not loaded in the timeline
   searchInput.addEventListener('input', (e) => {
+    cancelTimelineRequests();
     const keyword = e.target.value.trim();
     const seq = ++searchSeq;
     clearTimeout(searchTimer);
@@ -1739,7 +1905,125 @@
     });
   }
 
+  // 15. Phone layout (review/mobile_design_system.md): view title, always-visible search,
+  // full-screen menu, floating send button, collapsing title bar.
+  const MONTH_TITLE = (m) => { const [y, mo] = String(m).split('-'); return `${y} 年 ${Number(mo)} 月`; };
+
+  function updateViewTitle() {
+    const keyword = searchInput.value.trim();
+    const title = keyword ? `搜索：${keyword}` : (currentViewMonth ? '按月份浏览' : '全部记录');
+    const viewTitle = document.getElementById('view-title');
+    if (viewTitle) {
+      viewTitle.textContent = title;
+      if (currentViewMonth && !keyword) {
+        const count = document.createElement('span');
+        count.className = 'view-count';
+        count.textContent = ` · 共 ${monthCounts[currentViewMonth] ?? allMessages.length} 条`;
+        viewTitle.appendChild(count);
+      }
+    }
+    searchBar.classList.toggle('has-text', !!searchInput.value);
+    // Phone menu rows and PC settings rows share the same state.
+    ['menu-all', 'setting-open-all'].forEach((id) => {
+      const row = document.getElementById(id);
+      if (row) row.classList.toggle('selected', !currentViewMonth);
+    });
+    ['menu-month', 'setting-open-month'].forEach((id) => {
+      const row = document.getElementById(id);
+      if (row) row.classList.toggle('selected', !!currentViewMonth);
+    });
+    ['menu-month-label', 'setting-month-label'].forEach((id) => {
+      const label = document.getElementById(id);
+      if (label) label.textContent = currentViewMonth ? MONTH_TITLE(currentViewMonth) : '';
+    });
+  }
+
+  if (isMobile) {
+    const app = document.getElementById('app-container');
+    const ICONS = {
+      camera: '<path d="M21 19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l2-3h4l2 3h3a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="3.5"/>',
+      image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+      file: '<path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/>',
+      refresh: '<path d="M20 11a8 8 0 0 0-14.9-3M4 5v4h4M4 13a8 8 0 0 0 14.9 3M20 19v-4h-4"/>',
+      scan: '<path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5M7 12h10"/>'
+    };
+    const icon = (name) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+
+    openSettingsBtn.title = '菜单';
+    openSettingsBtn.setAttribute('aria-label', '菜单');
+
+    // Compact popup menu (<= 240dp) anchored to a button.
+    function closeCompactMenu() {
+      document.querySelectorAll('.compact-menu, .compact-menu-mask').forEach(el => el.remove());
+    }
+    function showCompactMenu(anchor, items, upward) {
+      closeCompactMenu();
+      const mask = document.createElement('div');
+      mask.className = 'compact-menu-mask';
+      mask.addEventListener('click', closeCompactMenu);
+      const menu = document.createElement('div');
+      menu.className = 'compact-menu';
+      items.forEach(item => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.innerHTML = icon(item.icon) + '<span></span>';
+        btn.querySelector('span').textContent = item.label;
+        btn.addEventListener('click', () => { closeCompactMenu(); item.run(); });
+        menu.appendChild(btn);
+      });
+      document.body.append(mask, menu);
+      const r = anchor.getBoundingClientRect();
+      const w = menu.offsetWidth;
+      const h = menu.offsetHeight;
+      const left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
+      const top = Math.max(8, Math.min(upward ? r.top - h - 8 : r.bottom + 4, window.innerHeight - h - 8));
+      menu.style.left = left + 'px';
+      menu.style.top = top + 'px';
+    }
+
+    window.LinkFlowAttachMenu = () => showCompactMenu(sendBtn, [
+      { icon: 'camera', label: '拍照', run: () => cameraInput.click() },
+      { icon: 'image', label: '图片 / 视频', run: () => mediaInput.click() },
+      { icon: 'file', label: '任意文件', run: () => fileInput.click() }
+    ], true);
+    window.LinkFlowSendMode = () => chatInputBox.classList.toggle('has-text', !!messageInput.value.trim());
+    messageInput.addEventListener('input', window.LinkFlowSendMode);
+
+    // Menu: views and the connected computer.
+    const closeMenu = () => settingsModal.classList.remove('open');
+    openSettingsBtn.addEventListener('click', () => { app.classList.remove('compact'); });
+    menuScan.addEventListener('click', () => { closeMenu(); window.location.href = 'linkflow://scan'; });
+    menuPair.addEventListener('click', () => { closeMenu(); window.location.href = 'linkflow://pair'; });
+
+    // Title bar and search collapse while reading down the list, expand when scrolling back up.
+    let touching = false;
+    let touchTimer = 0;
+    let lastTop = chatHistory.scrollTop;
+    let lockUntil = 0;
+    chatHistory.addEventListener('touchstart', () => { touching = true; clearTimeout(touchTimer); }, { passive: true });
+    ['touchend', 'touchcancel'].forEach(name => chatHistory.addEventListener(name, () => {
+      clearTimeout(touchTimer);
+      touchTimer = setTimeout(() => { touching = false; }, 700);
+    }, { passive: true }));
+    chatHistory.addEventListener('scroll', () => {
+      const top = chatHistory.scrollTop;
+      const delta = top - lastTop;
+      lastTop = top;
+      if (!touching || Date.now() < lockUntil || Math.abs(delta) < 6) return;
+      const hold = document.activeElement === searchInput || !!searchInput.value;
+      const collapse = delta > 0 && top > 24 && !hold;
+      if (collapse !== app.classList.contains('compact')) {
+        app.classList.toggle('compact', collapse);
+        lockUntil = Date.now() + 300;
+        lastTop = chatHistory.scrollTop;
+      }
+    }, { passive: true });
+    searchInput.addEventListener('focus', () => app.classList.remove('compact'));
+
+  }
+
   // Initialize
+  updateViewTitle();
   initSingleInstance();
   connectWebSocket();
   window.LinkFlowUiReady = true;

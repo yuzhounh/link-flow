@@ -52,7 +52,7 @@ public class MainActivity extends Activity {
         autoReceiver = new AutoReceiver(this, downloads);
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.WHITE);
+        root.setBackgroundColor(0xFFF3F2FA);
         if (android.os.Build.VERSION.SDK_INT >= 30) {
             root.setOnApplyWindowInsetsListener((view, insets) -> {
                 android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
@@ -732,7 +732,14 @@ public class MainActivity extends Activity {
     }
     @Override public void onBackPressed() {
         if (probe != null || pageLoading) cancelConnection();
-        else if (pageReady && web != null && web.canGoBack()) web.goBack();
+        else if (pageReady && web != null) {
+            // The page closes its topmost layer (menu, dialog, search, month view) before history goes back.
+            web.evaluateJavascript("(window.LinkFlowBack&&window.LinkFlowBack())===true", handled -> {
+                if ("true".equals(handled)) return;
+                if (web.canGoBack()) web.goBack();
+                else super.onBackPressed();
+            });
+        }
         else super.onBackPressed();
     }
     @Override protected void onPause() {

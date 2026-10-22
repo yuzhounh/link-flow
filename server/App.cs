@@ -419,9 +419,14 @@ internal sealed class LinkFlowServer
             long? beforeTs = long.TryParse(Arg(ctx, "before_ts"), out long b) ? b : null;
             string? search = Arg(ctx, "search");
             string? month = Arg(ctx, "month");
+            if (!string.IsNullOrEmpty(month) && !DateTime.TryParseExact(month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+            {
+                await WriteJson(ctx, new { error = "Invalid month" }, 400);
+                return;
+            }
             var messages = _db.GetMessages(limit, beforeTs,
                 string.IsNullOrEmpty(search) ? null : search,
-                string.IsNullOrEmpty(month) ? null : month);
+                string.IsNullOrEmpty(month) ? null : month, Arg(ctx, "before_id"));
             await WriteJson(ctx, new Dictionary<string, object?>
             {
                 ["status"] = "ok",
@@ -665,7 +670,12 @@ internal sealed class LinkFlowServer
                 ["max_upload_bytes"] = AppInfo.MaxUploadBytes,
                 ["stats"] = _db.GetStats(),
             };
-            if (isHost) response["pairing_token"] = _token;
+            if (isHost)
+            {
+                response["pairing_token"] = _token;
+                // Shown in the pairing dialog: "make sure the device is on <this> Wi-Fi". Not sent to other devices.
+                response["wifi_name"] = NetworkHelper.GetWifiName(_lanIp);
+            }
             await WriteJson(ctx, response);
             return;
         }

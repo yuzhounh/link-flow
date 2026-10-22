@@ -16,3 +16,5 @@ android/signing.properties
 android/*.jks
 **/__pycache__/
 .pytest_cache/
+/tmp/
+/results/
