@@ -7,6 +7,8 @@
   --primary: #24a1de;
   --primary-hover: #1e8ec5;
   --primary-light: #e8f5fb;
+  /* The send/+ button keeps the PC colour on the phone too, whose --primary is a deeper blue. */
+  --send-btn: #24a1de;
   --bg-app: #ededed;
   --bg-header: #f7f7f7;
   --bg-chat: #f3f3f3;
@@ -56,6 +58,7 @@
   --primary: #38bdf8;
   --primary-hover: #0ea5e9;
   --primary-light: #082f49;
+  --send-btn: #38bdf8;
   --bg-app: #121212;
   --bg-header: #1f1f1f;
   --bg-chat: #181818;
@@ -896,6 +899,9 @@ header {
   flex-shrink: 0;
 }
 
+/* PC only: thin line icons on the card buttons (copy image, locate in folder). The phone keeps its own icons. */
+html.is-desktop .file-op-btn svg { stroke-width: 1.4; }
+
 /* PDF Card */
 .pdf-card {
   background-color: var(--card-bg);
@@ -1253,6 +1259,45 @@ body.is-mobile .tool-buttons {
 .setting-input { flex: 1; min-width: 0; max-width: 220px; font-size: var(--fs-body); padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); }
 
 .setting-row[hidden] { display: none; }
+.setting-action { width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; justify-content: flex-start; cursor: pointer; }
+@media (hover: hover) { .setting-action:hover { color: var(--primary); } }
+.setting-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The device name looks like plain text; tapping it edits it in place. */
+.setting-name-input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; font-size: var(--fs-body); text-overflow: ellipsis; outline: none; }
+.setting-name-input:focus { box-shadow: 0 1px 0 var(--primary); }
+.setting-value { flex: 1; min-width: 0; text-align: right; font-size: var(--fs-hint); color: var(--text-sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setting-icon-btn { flex: none; width: 32px; height: 32px; border: 0; border-radius: 50%; background: none; color: var(--text-sub); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+@media (hover: hover) { .setting-icon-btn:hover { color: var(--primary); } }
+.setting-action.selected { color: var(--primary); }
+/* PC window: the same header as the phone (view title with the connection state, one menu button), blended with the title bar. */
+html.is-desktop header { background: var(--bg-chat); border-bottom: none; padding: 0 8px 0 16px; }
+html.is-desktop .header-left { flex-direction: column; align-items: flex-start; justify-content: center; min-width: 0; flex: 1; }
+html.is-desktop .view-title { display: block; font-size: 18px; font-weight: 700; color: var(--text-main); line-height: 1.25; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.is-desktop .view-count { font-size: 12px; font-weight: 400; color: var(--text-sub); }
+html.is-desktop .status-badge { font-size: 11px; font-weight: 400; gap: 5px; line-height: 1.2; }
+html.is-desktop .status-dot { width: 6px; height: 6px; box-shadow: none !important; }
+html.is-desktop #open-settings-btn .ico-gear { display: none; }
+html.is-desktop #open-settings-btn .ico-menu { display: block; width: 22px; height: 22px; }
+html.is-desktop .history-banner-count { display: none; }
+/* PC settings: the same centred footer as the phone (app icon, name and version). */
+html.is-desktop .menu-footer { display: flex; flex-direction: column; align-items: center; margin-top: 12px; padding-top: 16px; border-top: 1px solid var(--border-color); }
+html.is-desktop .menu-footer-icon { width: 40px; height: 40px; border-radius: 10px; }
+html.is-desktop .menu-footer .modal-hint { margin-top: 8px; font-size: 12px; text-align: center; }
+/* Month bar: a close button on the right returns to all records (its list floats above the search bar). Search bar: a rounded box like the year/month boxes, with the close button inside; both close buttons share one vertical line (31px from the right edge). */
+#history-banner .history-close-btn { margin-left: auto; flex: none; width: 36px; height: 36px; } /* id selector: must beat the narrow-window rule that makes every .icon-btn 38px */
+/* No line between the month bar and the search bar; one line under the whole group, above the messages. The right padding puts the month bar's close button on the same vertical line as the search bar's. */
+html.is-desktop #history-banner { background-color: var(--bg-chat); border-bottom: none; padding-right: 13px; z-index: 30; }
+html.is-desktop #chat-history { border-top: 1px solid var(--border-color); }
+html.is-desktop #search-bar { height: 40px; margin: 0 12px 10px 16px; padding: 0 0 0 12px; gap: 8px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-input); }
+html.is-desktop #search-bar:focus-within { border-color: var(--primary); }
+html.is-desktop .search-icon { display: block; flex: none; color: var(--text-sub); }
+html.is-desktop #search-input { border: 0; border-radius: 0; background: transparent; padding: 0; font-size: 15px; }
+html.is-desktop #close-search-btn { flex: none; width: 36px; height: 36px; color: var(--text-sub); }
+/* Phone-only and PC-only rows (the phone section order differs from the PC list). */
+html:not(.is-mobile) .m-row { display: none; }
+html.is-mobile .d-row { display: none; }
+/* Every settings row has exactly the same height: 44px on the PC, 48px on the phone (see below). */
+.settings-list .setting-row { height: 44px; min-height: 44px; box-sizing: border-box; }
 .modal-title-icon { display: flex; align-items: center; gap: 10px; }
 .modal-title-icon svg { flex: none; color: var(--text-sub); }
 .setting-sub { font-size: var(--fs-hint); color: var(--text-sub); margin-top: 2px; }
@@ -1298,18 +1343,16 @@ body.is-mobile .tool-buttons {
   margin: 0 auto;
 }
 
+/* The pairing link is plain text (no grey box); the copy button is a small icon. */
 .qr-info-url {
-  background: var(--bg-header);
-  border: 1px solid var(--border-color);
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
+  padding: 2px 0;
   font-size: var(--fs-hint);
   word-break: break-all;
   color: var(--primary);
-  font-weight: 500;
+  font-weight: 400;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .qr-info-url #qr-url-text {
@@ -1320,19 +1363,21 @@ body.is-mobile .tool-buttons {
 
 .qr-copy-btn {
   flex-shrink: 0;
-  border: 1px solid var(--border-color);
-  background: var(--card-bg);
-  color: var(--text-main);
-  font-size: var(--fs-hint);
-  padding: 4px 12px;
-  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: none;
+  color: var(--text-sub);
+  border-radius: 50%;
   cursor: pointer;
 }
 
 .qr-copy-btn:hover {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
+  background: var(--primary-light);
+  color: var(--primary);
 }
 
 .modal-footer {
@@ -1698,3 +1743,208 @@ input:checked + .slider:before {
   .month-nav-today { padding-inline: 6px; font-size: 13px; }
   .history-banner-count { font-size: 12px; padding-inline: 5px; white-space: nowrap; }
 }
+
+
+/* ==========================================================================
+   Phone layout (review/mobile_design_system.md): content first, one menu button,
+   full-screen "records and settings" menu, floating send button.
+   Everything below is scoped to html.is-mobile; the PC window is unchanged.
+   ========================================================================== */
+.m-only, .view-title, .ico-menu, .search-icon, .ico-plus, .menu-footer { display: none; }
+html.is-mobile .m-only { display: revert; }
+html.is-mobile .d-only { display: none; }
+
+html.is-mobile {
+  --primary: #416DC3;
+  --primary-hover: #3860b0;
+  --primary-light: #EAF1FC;
+  --bg-app: #F3F2FA;
+  --bg-header: transparent;
+  --bg-chat: #F8FAFD;
+  --bg-input: #ffffff;
+  --bubble-self: #EAF1FC;
+  --bubble-peer: #ffffff;
+  --text-main: #213047;
+  --text-sub: #67768C;
+  --text-muted: #9aa8bb;
+  --border-color: #E4EAF2;
+  --card-bg: #ffffff;
+  --field-bg: #F2F5FA;
+  --ripple: #22416DC3;
+  --page-gradient: linear-gradient(135deg, #ECF3FF 0%, #F3F2FA 50%, #FAF6F0 100%);
+}
+html.is-mobile[data-theme="dark"] {
+  --primary: #7DA2EA;
+  --primary-hover: #93b2ee;
+  --primary-light: #24304a;
+  --bg-app: #14171f;
+  --bg-chat: #1a1e28;
+  --bg-input: #222733;
+  --bubble-self: #2a3a5c;
+  --bubble-peer: #262b38;
+  --text-main: #e6ebf3;
+  --text-sub: #9aa6b8;
+  --text-muted: #6b768a;
+  --border-color: #2b3140;
+  --card-bg: #222733;
+  --field-bg: #2a3040;
+  --ripple: #227DA2EA;
+  --page-gradient: linear-gradient(135deg, #141a28 0%, #161821 50%, #1b1a1d 100%);
+}
+
+html.is-mobile body { background: var(--page-gradient); background-attachment: fixed; }
+html.is-mobile #app-container { background: transparent; max-width: 100%; box-shadow: none; }
+html.is-mobile svg { stroke-width: 1.8; }
+html.is-mobile button:active, html.is-mobile .menu-row:active { background-color: var(--ripple); }
+
+/* Title bar: current view name on the left, one menu button on the right. */
+html.is-mobile header {
+  height: 60px; padding: 0 4px 0 16px; border-bottom: none;
+  transition: height 180ms ease;
+}
+html.is-mobile .header-left { flex-direction: column; align-items: flex-start; justify-content: center; min-width: 0; flex: 1; }
+html.is-mobile .view-title {
+  display: block; font-size: 18px; font-weight: 700; color: var(--text-main);
+  line-height: 1.25; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: font-size 180ms ease;
+}
+html.is-mobile .view-count { font-size: 12px; font-weight: 400; color: var(--text-sub); }
+html.is-mobile .history-banner-count { display: none; }
+html.is-mobile .menu-row[hidden] { display: none; }
+html.is-mobile .status-badge { font-size: 11px; font-weight: 400; gap: 5px; line-height: 1.2; overflow: hidden; max-height: 14px; transition: max-height 180ms ease, opacity 180ms ease; }
+html.is-mobile .status-dot { width: 6px; height: 6px; box-shadow: none !important; }
+html.is-mobile #open-settings-btn { width: 48px; height: 48px; border-radius: 16px; color: var(--text-main); }
+html.is-mobile #open-settings-btn .ico-gear { display: none; }
+html.is-mobile #open-settings-btn .ico-menu { display: block; width: 24px; height: 24px; }
+html.is-mobile #app-container.compact header { height: 48px; }
+html.is-mobile #app-container.compact .view-title { font-size: 16px; }
+html.is-mobile #app-container.compact .status-badge { max-height: 0; opacity: 0; }
+
+/* Search: opened from settings, 46dp pill with a magnifier and a close button. */
+html.is-mobile #search-bar {
+  display: none; height: 46px; margin: 0 16px 8px; padding: 0 4px 0 14px; gap: 8px;
+  border: none; border-radius: 24px; background: var(--card-bg); box-shadow: 0 1px 0 var(--border-color);
+  overflow: hidden; transition: height 180ms ease, margin 180ms ease, opacity 180ms ease;
+}
+html.is-mobile #search-bar.active { display: flex; }
+html.is-mobile .search-icon { display: block; flex: none; color: var(--text-sub); align-self: center; }
+html.is-mobile #search-input { border: none; background: transparent; padding: 0; font-size: 15px; border-radius: 0; }
+html.is-mobile #search-input::placeholder { color: var(--text-sub); }
+html.is-mobile #close-search-btn { display: flex; width: 40px; height: 40px; color: var(--text-sub); }
+html.is-mobile #search-bar.has-text #close-search-btn { display: flex; }
+html.is-mobile #app-container.compact #search-bar { height: 0; margin-bottom: 0; opacity: 0; pointer-events: none; }
+
+/* Month strip (opened from the menu) */
+html.is-mobile #history-banner { margin: 0 16px 8px; padding: 0; min-height: 0; border: none; background: transparent; }
+/* Month bar on the phone: tighter gaps so the close button stays on the same row down to 360px wide. */
+html.is-mobile #history-banner { gap: 6px; flex-wrap: nowrap; }
+html.is-mobile .month-nav { gap: 4px; min-width: 0; }
+html.is-mobile .history-close-btn { width: 36px; height: 36px; }
+html.is-mobile .month-nav-select, html.is-mobile .month-nav-btn, html.is-mobile .month-nav-today {
+  height: 40px; border-radius: 14px; background: var(--card-bg); border-color: var(--border-color); font-size: 14px;
+}
+html.is-mobile .month-nav-btn { min-width: 40px; }
+html.is-mobile .month-dd-list { border-radius: 16px; }
+
+/* Content runs the full screen width: no framed panel. */
+html.is-mobile #chat-history {
+  margin: 0; border-radius: 0; background: transparent;
+  padding: 12px 12px 8px; scroll-behavior: auto;
+}
+html.is-mobile .bubble { border-radius: 16px; font-size: 15px; box-shadow: none; }
+html.is-mobile .message-row.is-current-device .bubble { color: var(--text-main); }
+html.is-mobile .file-card { border-radius: 16px; background: var(--card-bg); border-color: var(--border-color); box-shadow: none; }
+html.is-mobile .sender-avatar { border-radius: 16px; background: var(--primary-light); color: var(--text-sub); }
+html.is-mobile .timeline-date-divider { background: transparent; font-size: 11px; }
+
+/* Input row: text field + send. Attachments live behind the floating button. */
+html.is-mobile footer {
+  background: transparent; border-top: none; padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+}
+html.is-mobile .chat-input-box {
+  flex-direction: row; align-items: flex-end; border: none; border-radius: 22px;
+  background: var(--card-bg); box-shadow: 0 1px 0 var(--border-color); padding: 0 4px 0 4px;
+}
+html.is-mobile .chat-input-box:focus-within { box-shadow: 0 0 0 1.5px var(--primary); }
+html.is-mobile #message-input {
+  flex: 1; min-width: 0; width: auto; height: 44px; min-height: 44px; max-height: 120px;
+  padding: 12px 12px 0; font-size: 15px; line-height: 20px; border-radius: 22px;
+}
+html.is-mobile .chat-input-bottom { padding: 0 0 4px; min-height: 0; flex: none; }
+html.is-mobile .tool-buttons, html.is-mobile body .tool-buttons { display: none !important; }
+/* 44dp pill (22dp radius) with a 36dp button inset 4dp: both arcs share one centre. */
+html.is-mobile .chat-input-bottom .send-btn { width: 36px; height: 36px; margin: 0; }
+html.is-mobile .send-btn .ico-send { display: none; }
+html.is-mobile .send-btn .ico-plus { display: block; }
+html.is-mobile .chat-input-box.has-text .send-btn .ico-send { display: block; width: 18px; height: 18px; }
+html.is-mobile .chat-input-box.has-text .send-btn .ico-plus { display: none; }
+html.is-mobile .send-btn { background: var(--send-btn); }
+
+/* Compact popup menu (<= 240dp) */
+.compact-menu-mask { position: fixed; inset: 0; z-index: 300; }
+.compact-menu {
+  position: fixed; z-index: 301; min-width: 180px; max-width: 240px; padding: 6px;
+  background: var(--card-bg); border-radius: 24px; box-shadow: 0 8px 28px rgba(33, 48, 71, 0.22);
+}
+.compact-menu button {
+  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 48px; padding: 8px 14px;
+  border: none; border-radius: 16px; background: none; color: var(--text-main); font-size: 14px; text-align: left;
+}
+.compact-menu button svg { flex: none; width: 22px; height: 22px; stroke-width: 1.8; }
+.compact-menu button:active { background: var(--ripple); }
+
+/* Full-screen menu */
+html.is-mobile #settings-modal { padding: 0; background: var(--page-gradient); align-items: stretch; justify-content: stretch; }
+html.is-mobile #settings-modal .modal-box {
+  max-width: none; max-height: none; height: 100%; border-radius: 0; box-shadow: none; background: transparent;
+  padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px)); gap: 0; overflow-y: auto;
+}
+html.is-mobile #settings-modal .modal-header { height: 60px; flex: none; }
+html.is-mobile #settings-modal .modal-title { font-size: 18px; font-weight: 700; }
+html.is-mobile #settings-modal .close-btn { width: 48px; height: 48px; margin-right: -12px; border-radius: 16px; color: var(--text-main); }
+html.is-mobile .menu-section { padding: 8px 0; border-bottom: 1px solid var(--border-color); }
+html.is-mobile .menu-row {
+  display: flex; align-items: center; gap: 16px; width: 100%; height: 48px; min-height: 48px; padding: 0 12px; box-sizing: border-box;
+  border: none; border-radius: 16px; background: none; color: var(--text-main); font-size: 15px; text-align: left;
+}
+html.is-mobile .menu-row.selected { background: var(--primary-light); color: var(--primary); }
+html.is-mobile .menu-row svg { flex: none; }
+html.is-mobile .menu-label { flex: 1; }
+html.is-mobile .menu-count { font-size: 12px; color: var(--text-sub); }
+html.is-mobile .menu-object { display: flex; align-items: center; gap: 16px; height: 48px; min-height: 48px; padding: 0 0 0 12px; box-sizing: border-box; color: var(--text-main); }
+html.is-mobile .menu-object > svg { flex: none; }
+html.is-mobile .menu-object-text { flex: 1; min-width: 0; }
+html.is-mobile .menu-object-name { font-size: 15px; line-height: 20px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.is-mobile .menu-object-sub { font-size: 12px; line-height: 15px; color: var(--text-sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.is-mobile .menu-gear { flex: none; width: 48px; height: 48px; border: none; border-radius: 16px; background: none; color: var(--text-sub); display: flex; align-items: center; justify-content: center; }
+html.is-mobile .settings-list { display: flex; flex-direction: column; gap: 0; padding: 8px 0; }
+html.is-mobile .settings-list .setting-row { justify-content: flex-start; gap: 16px; height: 48px; min-height: 48px; padding: 0 12px; box-sizing: border-box; color: var(--text-main); }
+html.is-mobile .settings-list .setting-row > svg { flex: none; }
+html.is-mobile .settings-list .setting-row > .setting-label { flex: 1; }
+html.is-mobile .settings-list .setting-row > .setting-input { flex: 0 1 150px; height: 36px; padding: 0 12px; }
+html.is-mobile .settings-list .setting-action { border-radius: 16px; }
+html.is-mobile .setting-name-input { font-size: 15px; }
+html.is-mobile .settings-list .setting-row > .setting-value { flex: 0 1 auto; font-size: 12px; }
+html.is-mobile .settings-list #clear-all-row { padding: 0 12px; }
+/* Tapping the computer row reconnects and syncs; its icon spins while that runs. */
+.setting-action.spinning > svg:first-child { animation: lf-spin 0.9s linear infinite; }
+html.is-mobile .setting-label { font-size: 15px; }
+html.is-mobile .setting-sub { font-size: 12px; }
+html.is-mobile .setting-input { background: var(--field-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 10px 12px; font-size: 15px; }
+html.is-mobile .settings-bottom { border-top: none; padding-top: 0; }
+html.is-mobile .danger-text-btn { border-radius: 14px; font-size: 13px; }
+html.is-mobile .menu-footer {
+  display: flex; flex-direction: column; align-items: center; margin-top: auto; padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+html.is-mobile .menu-footer-icon { width: 40px; height: 40px; border-radius: 10px; }
+html.is-mobile .menu-footer .modal-hint { margin-top: 8px; font-size: 12px; text-align: center; }
+
+/* Other dialogs: 24dp corners */
+html.is-mobile #qr-modal .modal-box,
+html.is-mobile #clear-confirm-modal .modal-box,
+html.is-mobile #connection-modal .modal-box { border-radius: 24px; }
+html.is-mobile .confirm-btn, html.is-mobile .connection-action { border-radius: 14px; }
+
+html.is-mobile .menu-gear.spinning svg { animation: lf-spin 0.9s linear infinite; }
+@keyframes lf-spin { to { transform: rotate(360deg); } }

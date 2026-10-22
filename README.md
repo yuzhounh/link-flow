@@ -17,7 +17,9 @@
   <a href="https://github.com/yuzhounh/link-flow/releases/latest">下载发布版</a> · <a href="#快速开始">快速开始</a> · <a href="LICENSE">开源协议</a>
 </p>
 
-LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照片、视频、PDF、ZIP，但不依赖微信/QQ，零外部云端，局域网极速直连，手机、平板、其他电脑免装 App 扫码即用。当前版本为 **v0.3.19**（Windows 原生实现）。
+LinkFlow 像微信“文件传输助手”一样随手丢文字、截图、照片、视频、PDF、ZIP，但不依赖微信/QQ，零外部云端，局域网极速直连，手机、平板、其他电脑免装 App 扫码即用。当前日常版本为 **v0.4.2**（Windows 原生实现；公开 Release 版本单独维护）。
+
+历史月份与实时记录共用每页30条的稳定游标，向上滚动继续加载；同一毫秒的消息按ID排序，不会因翻页漏项。旧页只插入新增卡片，保留现有下载卡片与滚动位置；切月、返回全部及搜索会取消过期分页。月份总数仍显示全月统计，搜索沿用200条请求上限。电脑WebView、浏览器与Android使用同一页面；数据及配对保留在原项目`data/`。
 
 <p align="center">
   <img src="static/screenshot.png" width="800" alt="LinkFlow 界面截图" />

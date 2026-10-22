@@ -8,11 +8,11 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>LinkFlow</AssemblyName>
     <RootNamespace>LinkFlow</RootNamespace>
-    <Version>0.3.19</Version>
+    <Version>0.4.2</Version>
     <Product>LinkFlow</Product>
     <ApplicationIcon>static\icon.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <DefaultItemExcludes>$(DefaultItemExcludes);data/**;dist/**;static/**;screenshots/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);data/**;dist/**;static/**;screenshots/**;tmp/**;results/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

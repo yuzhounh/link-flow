@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -30,9 +31,64 @@ namespace LinkFlow;
 
 internal static class NetworkHelper
 {
+    private static readonly object WifiLock = new();
+    private static string? _wifiName;
+    private static string? _wifiForIp;
+    private static DateTime _wifiCheckedUtc = DateTime.MinValue;
+
+    // Name of the Wi-Fi network that the given LAN address belongs to; null when the address is on a wired
+    // adapter or the name cannot be read. The answer is cached for a minute (it spawns netsh).
+    public static string? GetWifiName(string lanIp)
+    {
+        lock (WifiLock)
+        {
+            if (_wifiForIp == lanIp && DateTime.UtcNow - _wifiCheckedUtc < TimeSpan.FromSeconds(60)) return _wifiName;
+            _wifiForIp = lanIp;
+            _wifiCheckedUtc = DateTime.UtcNow;
+            _wifiName = ReadWifiName(lanIp);
+            return _wifiName;
+        }
+    }
+
+    private static string? ReadWifiName(string lanIp)
+    {
+        try
+        {
+            var nic = NetworkInterface.GetAllNetworkInterfaces().FirstOrDefault(n =>
+                n.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 &&
+                n.GetIPProperties().UnicastAddresses.Any(a => a.Address.ToString() == lanIp));
+            if (nic == null) return null;
+            using var process = Process.Start(new ProcessStartInfo("netsh", "wlan show interfaces")
+            {
+                RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true
+            });
+            if (process == null) return null;
+            var reading = process.StandardOutput.ReadToEndAsync();
+            if (!process.WaitForExit(2000))
+            {
+                try { process.Kill(); } catch { /* already gone */ }
+                return null;
+            }
+            string? current = null;
+            foreach (string line in reading.Result.Split('\n'))
+            {
+                int colon = line.IndexOf(':');
+                if (colon <= 0) continue;
+                string key = line[..colon].Trim(), value = line[(colon + 1)..].Trim();
+                if (key is "Name" or "名称") current = value;
+                else if (key == "SSID" && current == nic.Name) return value.Length > 0 ? value : null;
+            }
+        }
+        catch
+        {
+            // No wireless adapter, or netsh is unavailable.
+        }
+        return null;
+    }
+
     public static List<string> GetLanIps()
     {
-        var found = new List<(string Ip, bool HasGateway)>();
+        var found = new List<(string Ip, bool HasGateway, bool Virtual)>();
         try
         {
             foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
@@ -41,6 +97,7 @@ internal static class NetworkHelper
                 if (nic.NetworkInterfaceType == NetworkInterfaceType.Loopback ||
                     nic.NetworkInterfaceType == NetworkInterfaceType.Tunnel) continue;
 
+                bool isVirtual = IsVirtualAdapter(nic);
                 var props = nic.GetIPProperties();
                 bool hasGateway = props.GatewayAddresses.Any(g =>
                     g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any));
@@ -48,7 +105,7 @@ internal static class NetworkHelper
                 {
                     if (address.Address.AddressFamily != AddressFamily.InterNetwork) continue;
                     string ip = address.Address.ToString();
-                    if (IsPhysicalLanIp(ip) && !found.Any(f => f.Ip == ip)) found.Add((ip, hasGateway));
+                    if (IsPhysicalLanIp(ip) && !found.Any(f => f.Ip == ip)) found.Add((ip, hasGateway, isVirtual));
                 }
             }
         }
@@ -59,9 +116,28 @@ internal static class NetworkHelper
 
         // Prefer the adapter that actually has a gateway (real Wi-Fi/Ethernet over virtual adapters),
         // then 192.168.* > 10.* > 172.16-31.*.
-        var ips = found.OrderBy(f => f.HasGateway ? 0 : 1).ThenBy(f => Rank(f.Ip)).Select(f => f.Ip).ToList();
+        // Virtual adapters (VPN, tunnels, virtual machines) are hidden: a phone cannot use them. They are only
+        // kept when nothing else is available, so the list is never empty.
+        var usable = found.Where(f => !f.Virtual).ToList();
+        if (usable.Count == 0) usable = found;
+        var ips = usable.OrderBy(f => f.HasGateway ? 0 : 1).ThenBy(f => Rank(f.Ip)).Select(f => f.Ip).ToList();
         if (ips.Count == 0) ips.Add("127.0.0.1");
         return ips;
+    }
+
+    private static readonly string[] VirtualAdapterMarkers =
+    {
+        "tunnel", "wintun", "tap-", "vpn", "virtual", "vmware", "vmnet", "hyper-v", "vethernet", "wsl",
+        "zerotier", "tailscale", "wireguard", "easytier", "clash"
+    };
+
+    // The adapter name and description reveal tunnels and virtual switches (for example "AICompute Tunnel").
+    private static bool IsVirtualAdapter(NetworkInterface nic)
+    {
+        string text = (nic.Name + " " + nic.Description).ToLowerInvariant();
+        foreach (string marker in VirtualAdapterMarkers)
+            if (text.Contains(marker, StringComparison.Ordinal)) return true;
+        return false;
     }
 
     private static bool IsPhysicalLanIp(string ip) =>

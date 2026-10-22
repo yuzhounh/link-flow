@@ -17,3 +17,5 @@ jobs:
       - run: dotnet run --project tests/UploadRegression/UploadRegression.csproj --configuration Release
       - run: dotnet run --project tests/TransferRegression/TransferRegression.csproj --configuration Release
       - run: node --test tests/clipboard-files.test.cjs
+      - run: dotnet run --project tests/QueryRegression/QueryRegression.csproj --configuration Release
+      - run: node --test tests/timeline-pagination.test.cjs

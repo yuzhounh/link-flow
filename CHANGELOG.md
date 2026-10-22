@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.2 - 2026-10-23 (daily update)
+
+- Month history now loads bounded pages with a timestamp/ID cursor, including records sharing the same millisecond; month search respects its requested limit. Invalid month parameters return 400.
+- Loading older records inserts only the new cards and merges the date boundary, preserving existing card state and scroll position. Switching months, returning to all records and starting a search cancel stale pagination; live messages do not leak into unrelated search results.
+- The header keeps the full month total while only a page is loaded. Windows, browser and Android share this timeline; existing data, pairing and native download handling remain in place.
+- Windows and Android are both 0.4.2 (APK versionCode 21). Includes the existing 0.4.1 interface and network-adapter fixes.
+
+## 0.4.1 - 2026-10-21
+
+- The PC window header now matches the phone: the view title (all records / month / search) with the connection state below it, and a single menu button. The QR code and month-browsing icons moved into the menu; the title bar shows only "LinkFlow" and, on Windows 11, takes the page colour (kept in sync with light/dark mode).
+- Settings (PC and phone): search sits under "Browse by month"; the device name is plain text that is edited in place; the connected computer is one row (tap to reconnect and sync); dark mode is a single tappable row; every row has the same height; the app icon, name and version are centred at the bottom.
+- Search is a rounded box with its close button inside. The month bar has a close button on the right (PC and phone) that returns to all records.
+- The pairing dialog names the Wi-Fi network to join, the link is plain text and the copy button is an icon. Virtual adapters (VPN, tunnels, virtual machines) are no longer offered as IP addresses.
+- Copying text into the PC clipboard is always on; the switch is gone. Thinner line icons on the PC card buttons.
+- Esc on the PC and the Android back key share one "close the topmost layer" logic; the menu actions are shared by phone and PC.
+- Windows and Android are both 0.4.1 (APK versionCode 20).
+
+## 0.4.0 - 2026-10-20 (not released)
+
+- Phone interface redesigned to review/mobile_design_system.md: the title bar shows the current view name (all records / month / search) with the connection state as small text below it, and a single menu button replaces the scan, month, search and settings buttons.
+- Always-visible rounded search field; the title bar and search collapse while scrolling down the list and return on scrolling up.
+- The menu is a full-screen "records and settings" page: all records, browse by month, the connected computer with a gear menu (reconnect, scan to change computer), device name, dark mode, clear records (PC only), and the app icon with the version at the bottom. The clipboard switch is no longer shown on phones (it only applies to the PC).
+- Photo / image / file sending moved to a floating button; the input bar is a single row. New colors, 24dp panels, 1.8 line icons.
+- Android back key closes menus, dialogs, search and the month view before leaving the page.
+- The PC window layout is unchanged.
+
 ## 0.3.19 - 2026-10-20
 
 - Maintenance release: the connection behavior is unchanged from 0.3.18. Adds the offline regression-check workflow (host probe, transfer, upload and clipboard checks) to the repository.

@@ -49,6 +49,7 @@ internal sealed class MessageDb
                     thumb_path TEXT
                 )");
         Execute("CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(timestamp DESC)");
+        Execute("CREATE INDEX IF NOT EXISTS idx_messages_cursor ON messages(timestamp DESC, id DESC)");
         // Databases created before compressed copies existed lack this column.
         if (!Query("PRAGMA table_info(messages)").Any(c => (c["name"] as string) == "thumb_size"))
             Execute("ALTER TABLE messages ADD COLUMN thumb_size INTEGER DEFAULT 0");
@@ -100,7 +101,7 @@ internal sealed class MessageDb
         "SELECT * FROM messages WHERE sender='pc' AND msg_type='file' AND (timestamp > $p0 OR (timestamp = $p0 AND id > $p1)) ORDER BY timestamp, id LIMIT $p2",
         timestamp, afterId, limit);
 
-    public List<Dictionary<string, object?>> GetMessages(int limit, long? beforeTs, string? search, string? month)
+    public List<Dictionary<string, object?>> GetMessages(int limit, long? beforeTs, string? search, string? month, string? beforeId = null)
     {
         var sql = new StringBuilder("SELECT * FROM messages WHERE 1=1");
         var args = new List<object?>();
@@ -130,8 +131,12 @@ internal sealed class MessageDb
 
         if (beforeTs is > 0)
         {
-            sql.Append($" AND timestamp < $p{args.Count}");
+            int cursor = args.Count;
+            sql.Append(beforeId == null
+                ? $" AND timestamp < $p{cursor}"
+                : $" AND (timestamp < $p{cursor} OR (timestamp = $p{cursor} AND id < $p{cursor + 1}))");
             args.Add(beforeTs.Value);
+            if (beforeId != null) args.Add(beforeId);
         }
 
         if (search != null)
@@ -140,14 +145,8 @@ internal sealed class MessageDb
             args.Add($"%{search}%");
         }
 
-        if (month != null)
-        {
-            sql.Append(" ORDER BY timestamp ASC LIMIT 10000");
-            return Query(sql.ToString(), args.ToArray());
-        }
-
-        sql.Append($" ORDER BY timestamp DESC LIMIT $p{args.Count}");
-        args.Add(limit);
+        sql.Append($" ORDER BY timestamp DESC, id DESC LIMIT $p{args.Count}");
+        args.Add(Math.Clamp(limit, 1, 500));
         var rows = Query(sql.ToString(), args.ToArray());
         rows.Reverse(); // oldest first for the chat timeline
         return rows;

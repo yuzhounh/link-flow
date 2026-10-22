@@ -1,6 +1,8 @@
 using System;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -22,6 +24,48 @@ internal sealed class MainWindow : Form
     private readonly System.Windows.Forms.Timer _saveTimer;
     private bool _allowClose;
 
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    private static int ColorRef(Color c) => c.R | (c.G << 8) | (c.B << 16);
+
+    // Makes the native title bar (Windows 11) the same colour as the page, so both look like one surface.
+    private void ApplyChrome(Color back, Color text, bool dark)
+    {
+        try
+        {
+            BackColor = back;
+            _webView.DefaultBackgroundColor = back;
+            if (!IsHandleCreated) return;
+            int useDark = dark ? 1 : 0, caption = ColorRef(back), border = caption, fore = ColorRef(text);
+            DwmSetWindowAttribute(Handle, 20, ref useDark, sizeof(int)); // DWMWA_USE_IMMERSIVE_DARK_MODE
+            DwmSetWindowAttribute(Handle, 35, ref caption, sizeof(int)); // DWMWA_CAPTION_COLOR
+            DwmSetWindowAttribute(Handle, 34, ref border, sizeof(int));  // DWMWA_BORDER_COLOR
+            DwmSetWindowAttribute(Handle, 36, ref fore, sizeof(int));    // DWMWA_TEXT_COLOR
+        }
+        catch
+        {
+            // Older Windows: keep the default title bar.
+        }
+    }
+
+    private void OnWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(e.WebMessageAsJson);
+            var message = doc.RootElement;
+            if (message.GetProperty("type").GetString() != "chrome") return;
+            ApplyChrome(ColorTranslator.FromHtml(message.GetProperty("bg").GetString()!),
+                        ColorTranslator.FromHtml(message.GetProperty("fg").GetString()!),
+                        message.GetProperty("dark").GetBoolean());
+        }
+        catch
+        {
+            // Ignore malformed messages.
+        }
+    }
+
     public event Action<Exception>? WebViewUnavailable;
     public event Action? SessionEnding;
 
@@ -32,6 +76,7 @@ internal sealed class MainWindow : Form
         _devTools = devTools;
 
         Text = AppInfo.WindowTitle;
+        ShowIcon = false; // the title bar shows only the name; the taskbar keeps the app icon
         StartPosition = FormStartPosition.Manual;
         AutoScaleMode = AutoScaleMode.None;
         BackColor = Color.FromArgb(0xED, 0xED, 0xED);
@@ -62,6 +107,7 @@ internal sealed class MainWindow : Form
     protected override async void OnLoad(EventArgs e)
     {
         base.OnLoad(e);
+        ApplyChrome(Color.FromArgb(0xF3, 0xF3, 0xF3), Color.FromArgb(0x19, 0x19, 0x19), false); // until the page reports its theme
         await InitializeWebViewAsync();
     }
 
@@ -78,6 +124,7 @@ internal sealed class MainWindow : Form
             core.Settings.AreDevToolsEnabled = _devTools;
             core.Settings.AreBrowserAcceleratorKeysEnabled = _devTools;
             core.Settings.IsStatusBarEnabled = false;
+            core.WebMessageReceived += OnWebMessage;
 
             // Links that leave LinkFlow open in the default browser.
             core.NewWindowRequested += (_, args) =>
