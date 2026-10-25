@@ -16,6 +16,11 @@ using (var connection = new SqliteConnection("Data Source=" + path)) {
     for (int i = 0; i < count; i++) { id.Value = i.ToString("D6"); ts.Value = start + i / 43; command.ExecuteNonQuery(); }
     id.Value = "outside-before"; ts.Value = start - 1; command.ExecuteNonQuery();
     id.Value = "outside-after"; ts.Value = new DateTimeOffset(new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Local)).ToUnixTimeMilliseconds(); command.ExecuteNonQuery();
+    command.CommandText = "INSERT INTO messages(id,timestamp,sender,msg_type,content) VALUES($id,$ts,'pc','text',$content)";
+    var content = command.Parameters.Add("$content", SqliteType.Text);
+    foreach (var (key, text) in new[] { ("wild-percent", "50% off"), ("wild-plain", "500 off"), ("wild-underscore", "a_b"), ("wild-any", "axb") }) {
+        id.Value = key; ts.Value = new DateTimeOffset(new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Local)).ToUnixTimeMilliseconds(); content.Value = text; command.ExecuteNonQuery();
+    }
     tx.Commit();
 }
 void Require(bool condition, string message) { if (!condition) throw new Exception(message); }
@@ -33,7 +38,9 @@ while (true) {
 Require(seen.Count == count && !seen.Any(x => x.StartsWith("outside")), "missing tied timestamps or month boundary");
 Require(db.GetMessages(7, null, "needle", "2026-09").Count == 7, "month search ignored limit");
 Require(db.GetMessages(7, start + 5, null, "2026-09").All(r => (long)r["timestamp"]! < start + 5), "legacy timestamp cursor changed");
-Require(db.GetStats()["total_messages"] is long total && total == count + 2, "query modified records");
-Console.WriteLine($"PASS: {count} monthly records across {pages} pages, tied timestamps, boundaries, bounded search, legacy cursor and unchanged totals");
+Require(db.GetMessages(10, null, "50%", null).Select(r => (string)r["id"]!).SequenceEqual(["wild-percent"]), "percent searched as a wildcard");
+Require(db.GetMessages(10, null, "a_b", null).Select(r => (string)r["id"]!).SequenceEqual(["wild-underscore"]), "underscore searched as a wildcard");
+Require(db.GetStats()["total_messages"] is long total && total == count + 6, "query modified records");
+Console.WriteLine($"PASS: {count} monthly records across {pages} pages, tied timestamps, boundaries, bounded search, literal wildcards, legacy cursor and unchanged totals");
 
 namespace LinkFlow { internal static class AppLog { public static void Warn(string category, string message) => Console.Error.WriteLine(category + ": " + message); } }

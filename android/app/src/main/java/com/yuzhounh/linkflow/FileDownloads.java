@@ -14,6 +14,7 @@ import java.util.Locale;
 /** Retains actual server filenames and reuses completed downloads for system ACTION_VIEW. */
 final class FileDownloads {
     private static final String APK = "application/vnd.android.package-archive";
+    private static final int MAX_TRACKED = 500, QUERY_CHUNK = 200;
     private final Activity activity;
     private final DownloadManager manager;
     private final SharedPreferences prefs;
@@ -48,6 +49,7 @@ final class FileDownloads {
         for (java.util.Map.Entry<String, ?> entry : prefs.getAll().entrySet())
             if (entry.getKey().startsWith("file:") && entry.getValue() instanceof Long)
                 tracked.put((Long) entry.getValue(), entry.getKey().substring(5));
+        prune();
         IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
         // Only opens an app-tracked, completed download following the user's earlier tap.
         androidx.core.content.ContextCompat.registerReceiver(activity, receiver, filter,
@@ -158,14 +160,70 @@ final class FileDownloads {
         handler.removeCallbacks(poll);
         if (foreground && !active.isEmpty()) handler.postDelayed(poll, 500);
     }
+    /** One DownloadManager query per chunk of tracked downloads, instead of one per download. */
     void refreshAll() {
-        for (long id : new java.util.ArrayList<>(tracked.keySet())) report(id);
+        java.util.List<Long> ids = new java.util.ArrayList<>(tracked.keySet());
+        for (int start = 0; start < ids.size(); start += QUERY_CHUNK) {
+            java.util.List<Long> chunk = ids.subList(start, Math.min(ids.size(), start + QUERY_CHUNK));
+            java.util.Set<Long> found = new java.util.HashSet<>();
+            try (Cursor cursor = manager.query(new DownloadManager.Query().setFilterById(longs(chunk)))) {
+                int column = cursor == null ? -1 : cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID);
+                while (cursor != null && cursor.moveToNext()) {
+                    long id = cursor.getLong(column);
+                    found.add(id);
+                    reportRow(id, cursor);
+                }
+            } catch (RuntimeException error) { continue; }
+            for (long id : chunk) if (!found.contains(id)) { active.remove(id); emit(id, "missing", 0, 0, 0, "本地文件不存在"); }
+        }
         schedulePoll();
+    }
+    /**
+     * Bounds the remembered downloads: entries the system no longer has and all but the newest MAX_TRACKED are
+     * forgotten together with their per-download keys, so the store and each refresh stop growing with use.
+     */
+    private void prune() {
+        java.util.List<Long> live = new java.util.ArrayList<>();
+        java.util.List<Long> ids = new java.util.ArrayList<>(tracked.keySet());
+        for (int start = 0; start < ids.size(); start += QUERY_CHUNK) {
+            try (Cursor cursor = manager.query(new DownloadManager.Query()
+                    .setFilterById(longs(ids.subList(start, Math.min(ids.size(), start + QUERY_CHUNK)))))) {
+                int column = cursor == null ? -1 : cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID);
+                while (cursor != null && cursor.moveToNext()) live.add(cursor.getLong(column));
+            } catch (RuntimeException error) { return; } // Keep everything when the system cannot answer.
+        }
+        live.sort(java.util.Collections.reverseOrder());
+        java.util.Set<Long> kept = new java.util.HashSet<>(live.subList(0, Math.min(live.size(), MAX_TRACKED)));
+        SharedPreferences.Editor edit = prefs.edit();
+        boolean changed = false;
+        for (java.util.Map.Entry<String, ?> entry : prefs.getAll().entrySet()) {
+            String name = entry.getKey();
+            Long id = null;
+            if (name.startsWith("file:") && entry.getValue() instanceof Long) id = (Long) entry.getValue();
+            else if (name.startsWith("mime:") || name.startsWith("watch:") || name.startsWith("notified:")) {
+                try { id = Long.parseLong(name.substring(name.indexOf(':') + 1)); } catch (NumberFormatException ignored) { }
+            }
+            if (id == null || kept.contains(id)) continue;
+            edit.remove(name);
+            changed = true;
+            if (name.startsWith("file:")) tracked.remove(id);
+        }
+        if (changed) edit.apply();
+    }
+    private static long[] longs(java.util.List<Long> values) {
+        long[] result = new long[values.size()];
+        for (int i = 0; i < result.length; i++) result[i] = values.get(i);
+        return result;
     }
     private void report(long id) {
         if (!tracked.containsKey(id)) return;
         try (Cursor cursor = manager.query(new DownloadManager.Query().setFilterById(id))) {
             if (cursor == null || !cursor.moveToFirst()) { active.remove(id); emit(id, "missing", 0, 0, 0, "本地文件不存在"); return; }
+            reportRow(id, cursor);
+        } catch (RuntimeException error) { active.remove(id); }
+    }
+    private void reportRow(long id, Cursor cursor) {
+        try {
             int state = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
             long done = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
             long total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));

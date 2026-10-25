@@ -8,9 +8,28 @@
     try { const url = new URL(raw, location.href); url.search = ''; url.hash = ''; return url.href; }
     catch (_) { return ''; }
   }
+  // Seen markers live in one map capped at SEEN_LIMIT entries (oldest dropped), instead of one key per
+  // received file forever; per-file keys from earlier versions are moved in once.
+  const SEEN_KEY = 'linkflow-received-seen', SEEN_LIMIT = 1000;
+  const seen = (() => {
+    let map = {};
+    try {
+      map = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}') || {};
+      const legacy = Object.keys(localStorage).filter(name => name.startsWith(SEEN_KEY + ':'));
+      for (const name of legacy) map[name.slice(SEEN_KEY.length + 1)] ??= localStorage.getItem(name);
+      if (legacy.length) {
+        map = Object.fromEntries(Object.entries(map).slice(-SEEN_LIMIT));
+        localStorage.setItem(SEEN_KEY, JSON.stringify(map)); // Saved before the old keys go.
+        for (const name of legacy) localStorage.removeItem(name);
+      }
+    } catch (_) { }
+    return new Map(Object.entries(map).slice(-SEEN_LIMIT));
+  })();
+  function saveSeen() {
+    try { localStorage.setItem(SEEN_KEY, JSON.stringify(Object.fromEntries(seen))); } catch (_) { }
+  }
   function acknowledged(url, state) {
-    let id = acknowledgements.get(url);
-    try { id = id || localStorage.getItem('linkflow-received-seen:' + url); } catch (_) { }
+    const id = acknowledgements.get(url) || seen.get(url);
     return id === String(state.downloadId || 'host');
   }
   function stateFor(card, url) {
@@ -97,7 +116,10 @@
     if (state.status !== 'complete') return;
     const id = String(state.downloadId || 'host');
     acknowledgements.set(url, id);
-    try { localStorage.setItem('linkflow-received-seen:' + url, id); } catch (_) { }
+    seen.delete(url);
+    seen.set(url, id);
+    while (seen.size > SEEN_LIMIT) seen.delete(seen.keys().next().value);
+    saveSeen();
     card.classList.add('download-acknowledged');
   }, true);
   window.LinkFlowDownloads = { apply, action, isReceived: raw => states.get(key(raw))?.status === 'complete' };

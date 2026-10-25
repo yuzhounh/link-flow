@@ -141,8 +141,9 @@ internal sealed class MessageDb
 
         if (search != null)
         {
-            sql.Append($" AND (content LIKE $p{args.Count} OR file_name LIKE $p{args.Count})");
-            args.Add($"%{search}%");
+            // Escape LIKE wildcards so "50%" or "a_b" match literally.
+            sql.Append($" AND (content LIKE $p{args.Count} ESCAPE '\\' OR file_name LIKE $p{args.Count} ESCAPE '\\')");
+            args.Add($"%{search.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_")}%");
         }
 
         sql.Append($" ORDER BY timestamp DESC, id DESC LIMIT $p{args.Count}");
