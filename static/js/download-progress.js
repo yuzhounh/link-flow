@@ -71,12 +71,13 @@
       else label.removeAttribute('aria-valuenow');
       // A received card is already shown by its background and share button, so it needs no status row.
       label.hidden = state.status === 'complete';
-      if (state.status === 'complete') label.textContent = '已接收';
-      else if (state.status === 'failed') label.textContent = '接收失败 · ' + (state.detail || '点击重试');
-      else if (state.status === 'missing') label.textContent = '本地文件已删除 · 可重新接收';
-      else if (state.status === 'idle') label.textContent = window.LinkFlowServerOnline === false ? '未接收 · 等待电脑上线' : '未接收';
-      else if (state.status === 'paused') label.textContent = `接收暂停${state.percent >= 0 ? ' ' + percent + '%' : ''} · 等待网络`;
-      else label.textContent = state.percent >= 0 ? `接收中 ${percent}%` : '正在接收 · 获取文件大小';
+      const isEn = window.LinkFlowI18N && window.LinkFlowI18N.isEn();
+      if (state.status === 'complete') label.textContent = isEn ? 'Received' : '已接收';
+      else if (state.status === 'failed') label.textContent = (isEn ? 'Failed · ' : '接收失败 · ') + (state.detail || (isEn ? 'Retry' : '点击重试'));
+      else if (state.status === 'missing') label.textContent = isEn ? 'Deleted · Re-download' : '本地文件已删除 · 可重新接收';
+      else if (state.status === 'idle') label.textContent = window.LinkFlowServerOnline === false ? (isEn ? 'Not received · Waiting for PC' : '未接收 · 等待电脑上线') : (isEn ? 'Not received' : '未接收');
+      else if (state.status === 'paused') label.textContent = (isEn ? 'Paused' : '接收暂停') + (state.percent >= 0 ? ' ' + percent + '%' : '') + (isEn ? ' · Waiting for network' : ' · 等待网络');
+      else label.textContent = state.percent >= 0 ? (isEn ? `Receiving ${percent}%` : `接收中 ${percent}%`) : (isEn ? 'Receiving…' : '正在接收 · 获取文件大小');
       label.setAttribute('aria-valuetext', label.textContent);
       if (card.dataset.hostReceived !== 'true' && window.LinkFlowAndroid) {
         let button = card.querySelector('.receive-action');

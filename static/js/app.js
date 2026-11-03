@@ -588,9 +588,27 @@
     const d = new Date(timestamp);
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
+    const isEn = window.LinkFlowI18N ? window.LinkFlowI18N.isEn() : false;
+    if (isToday) return isEn ? 'Today' : '今天';
+
+    const yest = new Date(now);
+    yest.setDate(now.getDate() - 1);
+    if (d.toDateString() === yest.toDateString()) {
+      return isEn ? 'Yesterday' : '昨天';
+    }
+
     const month = d.getMonth() + 1;
     const date = d.getDate();
-    return isToday ? '今天' : `${month}月${date}日`;
+    const year = d.getFullYear();
+    const isCurrentYear = year === now.getFullYear();
+
+    if (isEn) {
+      const enMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const mStr = enMonths[month - 1];
+      return isCurrentYear ? `${mStr} ${date}` : `${mStr} ${date}, ${year}`;
+    } else {
+      return isCurrentYear ? `${month}月${date}日` : `${year}年${month}月${date}日`;
+    }
   }
 
   // Live-appended messages need a date divider too when the day changes
@@ -601,6 +619,7 @@
     if (!prev || new Date(prev.timestamp).toDateString() !== new Date(msg.timestamp).toDateString()) {
       const divider = document.createElement('div');
       divider.className = 'timeline-date-divider';
+      divider.dataset.timestamp = String(msg.timestamp);
       divider.textContent = formatDateHeader(msg.timestamp);
       chatHistory.appendChild(divider);
     }
@@ -619,6 +638,7 @@
       if (day !== lastDate) {
         const divider = document.createElement('div');
         divider.className = 'timeline-date-divider';
+        divider.dataset.timestamp = String(msg.timestamp);
         divider.textContent = formatDateHeader(msg.timestamp);
         chatHistory.appendChild(divider);
         lastDate = day;
@@ -656,6 +676,7 @@
       if (day !== lastDay) {
         const divider = document.createElement('div');
         divider.className = 'timeline-date-divider';
+        divider.dataset.timestamp = String(msg.timestamp);
         divider.textContent = formatDateHeader(msg.timestamp);
         fragment.appendChild(divider);
         lastDay = day;
@@ -832,10 +853,20 @@
         <div class="file-icon-box"><span class="file-icon ft-${fileKind}" aria-hidden="true">${icon}</span><span class="file-ext-label">${escapeHtml(ext)}</span></div>
         <div class="file-info">
           <a class="file-name" href="${protectedFileUrl(msg.file_path)}" target="${isHost ? '_blank' : '_self'}" rel="noopener noreferrer" title="${escapeHtml(msg.file_name || '')}"><span class="file-name-base">${escapeHtml(baseName)}</span><span class="file-name-ext">${escapeHtml(fileExtWithDot)}</span></a>
-          ${msg.thumb_path
-            ? `<a class="file-meta file-thumb-link" href="${protectedFileUrl(msg.file_path)}" target="_blank" rel="noopener noreferrer" title="查看原图">原图 · ${formatFileSize(msg.file_size)}</a>`
-            : `<div class="file-meta">${formatFileSize(msg.file_size)}</div>`}
-          ${msg.thumb_path ? `<a class="file-meta file-thumb-link" href="${protectedThumbUrl(msg.thumb_path)}" target="_blank" rel="noopener noreferrer" title="查看压缩图">压缩图 · ${formatFileSize(msg.thumb_size)}</a>` : ''}
+          ${(() => {
+            const isEn = window.LinkFlowI18N ? window.LinkFlowI18N.isEn() : false;
+            const origLabel = isEn ? 'Original' : '原图';
+            const origTitle = isEn ? 'View original' : '查看原图';
+            const compLabel = isEn ? 'Compressed' : '压缩图';
+            const compTitle = isEn ? 'View compressed' : '查看压缩图';
+            const origPart = msg.thumb_path
+              ? `<a class="file-meta file-thumb-link" href="${protectedFileUrl(msg.file_path)}" target="_blank" rel="noopener noreferrer" title="${origTitle}">${origLabel} · ${formatFileSize(msg.file_size)}</a>`
+              : `<div class="file-meta">${formatFileSize(msg.file_size)}</div>`;
+            const compPart = msg.thumb_path
+              ? `<a class="file-meta file-thumb-link" href="${protectedThumbUrl(msg.thumb_path)}" target="_blank" rel="noopener noreferrer" title="${compTitle}">${compLabel} · ${formatFileSize(msg.thumb_size)}</a>`
+              : '';
+            return origPart + compPart;
+          })()}
         </div>
         <div class="file-ops">
           ${hostImage ? `<button class="file-op-btn copy-image-btn" title="${hasThumb ? '复制压缩图' : '复制原图'}" aria-label="${hasThumb ? '复制压缩图' : '复制原图'}">${window.LinkFlowIcons.svg('copy', 18)}</button>` : isHost ? `<button class="file-op-btn open-folder-btn" title="在文件夹中定位" aria-label="在文件夹中定位">${window.LinkFlowIcons.svg('folder', 18)}</button>` : isSelf ? '' : `<a class="file-op-btn" href="${protectedFileUrl(msg.file_path)}" download="${escapeHtml(msg.file_name || '')}" title="下载保存" aria-label="下载保存">${window.LinkFlowIcons.svg('receive', 18)}</a>`}
@@ -947,7 +978,10 @@
 
   // Set responsive placeholder
   if (messageInput) {
-    messageInput.placeholder = isMobile ? '输入消息...' : '输入文字，或直接拖入 / 粘贴文件...';
+    const curEn = window.LinkFlowI18N ? window.LinkFlowI18N.isEn() : false;
+    messageInput.placeholder = isMobile
+      ? (curEn ? 'Type a message...' : '输入消息...')
+      : (curEn ? 'Type a message, drag & drop, or paste files...' : '输入文字，或直接拖入 / 粘贴文件...');
   }
 
   // 6. Sending Messages & Uploads
@@ -2414,6 +2448,28 @@
     updateViewTitle();
     if (typeof updateStatusText === 'function') updateStatusText();
     if (currentViewMonth && typeof renderMonthNav === 'function') renderMonthNav(currentViewMonth);
+
+    // Update timeline date dividers
+    document.querySelectorAll('.timeline-date-divider').forEach(div => {
+      const ts = div.dataset.timestamp;
+      if (ts) div.textContent = formatDateHeader(Number(ts));
+    });
+
+    // Update message input placeholder
+    if (messageInput) {
+      const isEn = window.LinkFlowI18N && window.LinkFlowI18N.isEn();
+      messageInput.placeholder = isMobile
+        ? (isEn ? 'Type a message...' : '输入消息...')
+        : (isEn ? 'Type a message, drag & drop, or paste files...' : '输入文字，或直接拖入 / 粘贴文件...');
+    }
+
+    // Refresh messages and download state
+    if (allMessages.length > 0) {
+      renderMessages(allMessages, true);
+    }
+    if (window.LinkFlowDownloads && typeof window.LinkFlowDownloads.apply === 'function') {
+      window.LinkFlowDownloads.apply();
+    }
   }
 
   if (window.LinkFlowI18N && window.LinkFlowI18N.onChange) {
