@@ -238,6 +238,13 @@
     });
   }
 
+  
+    window.addEventListener('storage', (e) => {
+      if (e.key === STORAGE_KEY && SUPPORTED.includes(e.newValue)) {
+        setLang(e.newValue);
+      }
+    });
+
   window.LinkFlowI18N = {
     getLang,
     setLang,
