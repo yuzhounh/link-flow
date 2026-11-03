@@ -8,6 +8,7 @@
     copy: '<rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M15.5 4H5.5A1.5 1.5 0 0 0 4 5.5v10"/>',
     text: '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
     folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    qr: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3v4M17 21h4v-4M21 14v.01"/><path d="M6.5 6.5h.01M17.5 6.5h.01M6.5 17.5h.01"/>',
     // Device avatars.
     mobile: '<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',
     desktop: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',

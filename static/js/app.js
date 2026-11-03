@@ -160,13 +160,23 @@
   const settingsModal = document.getElementById('settings-modal');
   const openSettingsBtn = document.getElementById('open-settings-btn');
   const closeSettingsModal = document.getElementById('close-settings-modal');
+  const settingsBody = settingsModal.querySelector('.modal-box');
+  let settingsScrollTop = 0;
+  function showSettings() {
+    settingsModal.classList.add('open');
+    settingsBody.scrollTop = settingsScrollTop;
+  }
+  function hideSettings() {
+    if (settingsModal.classList.contains('open')) settingsScrollTop = settingsBody.scrollTop;
+    settingsModal.classList.remove('open');
+  }
   const settingDarkTheme = document.getElementById('setting-dark-theme');
   const clearAllBtn = document.getElementById('clear-all-btn');
   const storageStatsText = document.getElementById('storage-stats-text');
   const appVersionText = document.getElementById('app-version-text');
 
   const lightboxMask = document.getElementById('lightbox-mask');
-  const lightboxImg = document.getElementById('lightbox-img');
+  let lightboxImg = document.getElementById('lightbox-img');
 
   const searchBar = document.getElementById('search-bar');
   const searchInput = document.getElementById('search-input');
@@ -821,6 +831,7 @@
         bubble.classList.add('download-complete');
         bubble.style.setProperty('--download-progress', '100%');      }
       if (!isHost && isImage) {
+        if (!msg.receiving) bubble.dataset.previewUrl = protectedFileUrl(msg.file_path);
         bubble.querySelectorAll('.file-name, .file-thumb-link').forEach(link => {
           link.addEventListener('click', event => {
             event.preventDefault();
@@ -828,7 +839,7 @@
               window.LinkFlowDownloads.action('open', link.href);
               return;
             }
-            openLightbox(link.href);
+            openLightbox(link.href, bubble.dataset.previewUrl);
           });
         });
       }
@@ -1546,7 +1557,7 @@
   // Close modals on clicking outside mask
   window.addEventListener('click', (e) => {
     if (qrModal && e.target === qrModal) qrModal.classList.remove('open');
-    if (settingsModal && e.target === settingsModal) settingsModal.classList.remove('open');
+    if (settingsModal && e.target === settingsModal) hideSettings();
   });
 
   // 11. Settings Modal
@@ -1558,10 +1569,22 @@
         updateStorageStats(data.stats);
       }
     } catch (e) {}
-    settingsModal.classList.add('open');
+    showSettings();
   });
 
-  closeSettingsModal.addEventListener('click', () => settingsModal.classList.remove('open'));
+  closeSettingsModal.addEventListener('click', hideSettings);
+
+  const helpModal = document.getElementById('help-modal');
+  function closeHelp() {
+    helpModal.classList.remove('open');
+    document.getElementById('open-help-btn').focus({ preventScroll: true });
+  }
+  document.getElementById('open-help-btn').addEventListener('click', () => {
+    helpModal.classList.add('open');
+    helpModal.querySelector('.help-content').scrollTop = 0;
+    document.getElementById('close-help-modal').focus();
+  });
+  document.getElementById('close-help-modal').addEventListener('click', closeHelp);
 
   // Clear-all: an in-app confirmation that states what is lost; the destructive button unlocks after 3 s.
   const clearConfirmModal = document.getElementById('clear-confirm-modal');
@@ -1605,18 +1628,329 @@
     } else {
       await apiFetch('/api/messages', { method: 'DELETE' });
     }
-    settingsModal.classList.remove('open');
   });
 
   // 12. Lightbox Image
-  function openLightbox(src) {
+  const lightboxPrevious = document.getElementById('lightbox-previous');
+  const lightboxNext = document.getElementById('lightbox-next');
+  const lightboxPosition = document.getElementById('lightbox-position');
+  let previewImages = [], previewIndex = 0;
+  const previewPointers = new Map();
+  let previewGesture = null, previewScale = 1, previewX = 0, previewY = 0, previewLastTap = null;
+  let previewPendingImage = null, previewTransition = null, previewDrag = null;
+
+  function stopPreviewTransition() {
+    if (!previewTransition) return;
+    const transition = previewTransition;
+    previewTransition = null;
+    transition.animations.forEach(animation => animation.cancel());
+    transition.outgoing?.remove();
+  }
+
+  function cancelPendingPreview() {
+    if (!previewPendingImage) return;
+    previewPendingImage.onload = previewPendingImage.onerror = null;
+    previewPendingImage.src = '';
+    previewPendingImage = null;
+  }
+
+  function clearPreviewDrag() {
+    const drag = previewDrag;
+    previewDrag = null;
+    if (drag?.incoming) {
+      drag.incoming.onload = drag.incoming.onerror = null;
+      drag.incoming.src = '';
+      drag.incoming.remove();
+    }
+    applyPreviewTransform();
+  }
+
+  function positionDragNeighbour(drag) {
+    if (!drag.loaded) return;
+    const image = drag.incoming;
+    image.style.left = `${(lightboxMask.clientWidth - image.offsetWidth) / 2}px`;
+    image.style.top = `${(lightboxMask.clientHeight - image.offsetHeight) / 2}px`;
+    image.style.transform = `translate3d(${drag.offset + drag.step * lightboxMask.clientWidth}px, 0, 0)`;
+  }
+
+  function updatePreviewDrag(dx) {
+    const step = dx < 0 ? 1 : -1;
+    if (previewDrag && previewDrag.step !== step) clearPreviewDrag();
+    if (!previewDrag) {
+      const next = previewIndex + step;
+      const drag = { step, offset: 0, valid: next >= 0 && next < previewImages.length, loaded: false };
+      previewDrag = drag;
+      if (drag.valid) {
+        const image = new Image();
+        drag.incoming = image;
+        image.draggable = false;
+        image.className = 'lightbox-outgoing';
+        image.setAttribute('aria-hidden', 'true');
+        image.onload = () => {
+          if (previewDrag !== drag) return;
+          drag.loaded = true;
+          lightboxMask.insertBefore(image, lightboxImg);
+          positionDragNeighbour(drag);
+          if (drag.released) finishPreviewDrag(true);
+        };
+        image.onerror = () => {
+          if (previewDrag !== drag) return;
+          drag.valid = false;
+          if (drag.released) { finishPreviewDrag(false); showToast('图片加载失败，请重试', true); }
+        };
+        image.src = previewImages[next].src;
+      }
+    }
+    const drag = previewDrag, width = lightboxMask.clientWidth;
+    drag.offset = drag.valid ? Math.max(-width * 0.85, Math.min(width * 0.85, dx)) : dx * 0.25;
+    lightboxImg.style.transform = `translate3d(${drag.offset}px, 0, 0)`;
+    positionDragNeighbour(drag);
+  }
+
+  function finishPreviewDrag(commit) {
+    const drag = previewDrag;
+    if (!drag) return;
+    if (commit && drag.valid) {
+      drag.released = true;
+      if (drag.loaded) {
+        previewDrag = null; // Transfer the already loaded neighbour to movePreview without discarding it.
+        movePreview(drag.step, drag);
+      }
+      return;
+    }
+    previewDrag = null;
+    const neighbour = drag.incoming;
+    if (neighbour) neighbour.onload = neighbour.onerror = null;
+    applyPreviewTransform();
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { neighbour?.remove(); return; }
+    const timing = { duration: 180, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)' };
+    const animations = [lightboxImg.animate([
+      { transform: `translate3d(${drag.offset}px, 0, 0)` }, { transform: 'translate3d(0, 0, 0)' }
+    ], timing)];
+    if (drag.loaded) animations.push(neighbour.animate([
+      { transform: `translate3d(${drag.offset + drag.step * lightboxMask.clientWidth}px, 0, 0)` },
+      { transform: `translate3d(${drag.step * lightboxMask.clientWidth}px, 0, 0)` }
+    ], timing));
+    const transition = { outgoing: neighbour, animations };
+    previewTransition = transition;
+    Promise.all(animations.map(animation => animation.finished)).then(() => {
+      if (previewTransition === transition) stopPreviewTransition();
+    }).catch(() => {});
+  }
+
+  function applyPreviewTransform(scale = previewScale, x = previewX, y = previewY) {
+    previewScale = Math.max(1, Math.min(5, scale));
+    const maxX = Math.max(0, (lightboxImg.offsetWidth * previewScale - lightboxMask.clientWidth) / 2);
+    const maxY = Math.max(0, (lightboxImg.offsetHeight * previewScale - lightboxMask.clientHeight) / 2);
+    previewX = Math.max(-maxX, Math.min(maxX, x));
+    previewY = Math.max(-maxY, Math.min(maxY, y));
+    lightboxImg.style.transform = `translate3d(${previewX}px, ${previewY}px, 0) scale(${previewScale})`;
+  }
+
+  function resetPreviewTransform() {
+    stopPreviewTransition();
+    clearPreviewDrag();
+    for (const id of previewPointers.keys()) {
+      if (lightboxMask.hasPointerCapture(id)) lightboxMask.releasePointerCapture(id);
+    }
+    previewPointers.clear();
+    previewGesture = null;
+    previewLastTap = null;
+    applyPreviewTransform(1, 0, 0);
+  }
+
+  function closeLightbox() {
+    cancelPendingPreview();
+    lightboxMask.classList.remove('open');
+    resetPreviewTransform();
+  }
+
+  function previewCenter() {
+    const rect = lightboxMask.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  }
+
+  function beginPreviewGesture(allowTapAndSwipe, onImage) {
+    const points = Array.from(previewPointers.values());
+    if (points.length >= 2) {
+      const [a, b] = points, center = previewCenter();
+      previewGesture = {
+        type: 'pinch', distance: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), scale: previewScale,
+        anchorX: ((a.x + b.x) / 2 - center.x - previewX) / previewScale,
+        anchorY: ((a.y + b.y) / 2 - center.y - previewY) / previewScale
+      };
+      previewLastTap = null;
+    } else if (points.length === 1) {
+      previewGesture = { type: 'single', x: points[0].x, y: points[0].y,
+        panX: previewX, panY: previewY, zoomed: previewScale > 1, onImage,
+        allowTapAndSwipe, moved: !allowTapAndSwipe, lastX: points[0].x, lastTime: performance.now(), velocity: 0 };
+    } else previewGesture = null;
+  }
+
+  function togglePreviewZoom(point) {
+    if (previewScale > 1) applyPreviewTransform(1, 0, 0);
+    else {
+      const center = previewCenter(), scale = 2.5;
+      applyPreviewTransform(scale, (point.x - center.x) * (1 - scale), (point.y - center.y) * (1 - scale));
+    }
+  }
+
+  function updatePreviewPosition() {
+    lightboxPrevious.disabled = previewIndex <= 0;
+    lightboxNext.disabled = previewIndex >= previewImages.length - 1;
+    lightboxPosition.textContent = `${previewIndex + 1} / ${previewImages.length}`;
+    lightboxImg.alt = previewImages[previewIndex].name || '预览大图';
+  }
+
+  function openLightbox(src, originalSrc) {
+    cancelPendingPreview();
+    // Snapshot the current list, including off-screen rows, without mixing in other months/searches.
+    previewImages = Array.from(chatHistory.querySelectorAll('.file-card[data-preview-url]'))
+      .filter(card => card.getClientRects().length > 0)
+      .map(card => ({ src: card.dataset.previewUrl, name: card.querySelector('.file-name').title }));
+    previewIndex = previewImages.findIndex(image => image.src === originalSrc);
+    if (previewIndex < 0) {
+      previewImages = [{ src, name: '' }];
+      previewIndex = 0;
+    }
+    resetPreviewTransform();
     lightboxImg.src = src;
+    updatePreviewPosition();
     lightboxMask.classList.add('open');
   }
 
-  lightboxMask.addEventListener('click', () => {
-    lightboxMask.classList.remove('open');
+  function movePreview(step, dragged = null) {
+    const next = previewIndex + step;
+    if (next < 0 || next >= previewImages.length || previewPendingImage) return;
+    if (!dragged) clearPreviewDrag();
+    const incoming = dragged?.incoming || new Image();
+    const startOffset = dragged?.offset || 0;
+    previewPendingImage = incoming;
+    incoming.draggable = false;
+    incoming.onload = () => {
+      if (previewPendingImage !== incoming || !lightboxMask.classList.contains('open')) return;
+      previewPendingImage = null;
+      incoming.onload = incoming.onerror = null;
+      resetPreviewTransform();
+      // Reuse the decoded outgoing element; cloning its URL could download it again on this no-store host.
+      const outgoing = lightboxImg, width = outgoing.offsetWidth, height = outgoing.offsetHeight;
+      outgoing.removeAttribute('id');
+      outgoing.className = 'lightbox-outgoing';
+      outgoing.setAttribute('aria-hidden', 'true');
+      outgoing.style.width = `${width}px`;
+      outgoing.style.height = `${height}px`;
+      outgoing.style.left = `${(lightboxMask.clientWidth - width) / 2}px`;
+      outgoing.style.top = `${(lightboxMask.clientHeight - height) / 2}px`;
+      incoming.id = 'lightbox-img';
+      incoming.className = '';
+      incoming.removeAttribute('aria-hidden');
+      incoming.removeAttribute('style');
+      incoming.addEventListener('load', () => { if (lightboxImg === incoming) applyPreviewTransform(); });
+      lightboxMask.insertBefore(incoming, outgoing);
+      lightboxImg = incoming;
+      previewIndex = next;
+      applyPreviewTransform();
+      updatePreviewPosition();
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { outgoing.remove(); return; }
+      const distance = Math.sign(step) * lightboxMask.clientWidth;
+      const timing = { duration: 220, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)' };
+      const transition = { outgoing, animations: [
+        outgoing.animate([{ transform: `translate3d(${startOffset}px, 0, 0)` }, { transform: `translate3d(${-distance}px, 0, 0)` }], timing),
+        incoming.animate([{ transform: `translate3d(${startOffset + distance}px, 0, 0)` }, { transform: 'translate3d(0, 0, 0)' }], timing)
+      ] };
+      previewTransition = transition;
+      Promise.all(transition.animations.map(animation => animation.finished)).then(() => {
+        if (previewTransition === transition) stopPreviewTransition();
+      }).catch(() => { /* A new gesture or closing the viewer cancels the transition. */ });
+    };
+    incoming.onerror = () => {
+      if (previewPendingImage !== incoming) return;
+      previewPendingImage = null;
+      showToast('图片加载失败，请重试', true);
+    };
+    if (dragged) incoming.onload();
+    else incoming.src = previewImages[next].src;
+  }
+
+  lightboxPrevious.addEventListener('click', () => movePreview(-1));
+  lightboxNext.addEventListener('click', () => movePreview(1));
+  lightboxImg.addEventListener('load', () => applyPreviewTransform());
+  window.addEventListener('resize', () => {
+    if (lightboxMask.classList.contains('open')) resetPreviewTransform();
   });
+  lightboxMask.addEventListener('pointerdown', event => {
+    if ((event.pointerType === 'mouse' && event.button !== 0) || event.target.closest('.lightbox-controls')) return;
+    cancelPendingPreview();
+    stopPreviewTransition();
+    if (previewPointers.size === 0 || previewDrag) clearPreviewDrag();
+    previewPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    lightboxMask.setPointerCapture(event.pointerId);
+    beginPreviewGesture(true, event.target === lightboxImg);
+  });
+  lightboxMask.addEventListener('pointermove', event => {
+    if (!previewPointers.has(event.pointerId)) return;
+    previewPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const points = Array.from(previewPointers.values()), gesture = previewGesture;
+    if (!gesture) return;
+    if (gesture.type === 'pinch' && points.length >= 2) {
+      const [a, b] = points, center = previewCenter();
+      const scale = Math.max(1, Math.min(5, gesture.scale * Math.hypot(b.x - a.x, b.y - a.y) / gesture.distance));
+      applyPreviewTransform(scale, (a.x + b.x) / 2 - center.x - gesture.anchorX * scale,
+        (a.y + b.y) / 2 - center.y - gesture.anchorY * scale);
+    } else if (gesture.type === 'single') {
+      const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
+      const now = performance.now(), elapsed = now - gesture.lastTime;
+      if (elapsed > 0) gesture.velocity = (event.clientX - gesture.lastX) / elapsed;
+      gesture.lastX = event.clientX;
+      gesture.lastTime = now;
+      if (Math.hypot(dx, dy) > 10) { gesture.moved = true; previewLastTap = null; }
+      if (gesture.zoomed) applyPreviewTransform(previewScale, gesture.panX + dx, gesture.panY + dy);
+      else if (gesture.allowTapAndSwipe) {
+        if (!gesture.horizontal && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.4) gesture.horizontal = true;
+        if (gesture.horizontal) updatePreviewDrag(dx);
+      }
+    }
+  });
+  function releasePreviewPointer(event) {
+    previewPointers.delete(event.pointerId);
+    if (lightboxMask.hasPointerCapture(event.pointerId)) lightboxMask.releasePointerCapture(event.pointerId);
+  }
+  lightboxMask.addEventListener('pointercancel', event => {
+    releasePreviewPointer(event);
+    previewLastTap = null;
+    finishPreviewDrag(false);
+    beginPreviewGesture(false, false);
+  });
+  lightboxMask.addEventListener('pointerup', event => {
+    if (!previewPointers.has(event.pointerId)) return;
+    const start = previewGesture, multiple = previewPointers.size > 1;
+    releasePreviewPointer(event);
+    if (multiple) { beginPreviewGesture(false, false); return; }
+    previewGesture = null;
+    if (!start || start.type !== 'single') return;
+    const dx = event.clientX - start.x, dy = event.clientY - start.y;
+    if (previewDrag) {
+      const velocity = performance.now() - start.lastTime < 100 ? start.velocity : 0;
+      const far = Math.abs(dx) >= Math.min(100, lightboxMask.clientWidth * 0.22);
+      const flick = Math.abs(dx) >= 24 && Math.abs(velocity) >= 0.45 && Math.sign(velocity) === Math.sign(dx);
+      finishPreviewDrag(start.allowTapAndSwipe && !start.zoomed && (far || flick));
+      return;
+    }
+    if (!start.allowTapAndSwipe || start.moved || Math.hypot(dx, dy) > 10) return;
+    if (!start.onImage) { closeLightbox(); return; }
+    const point = { x: event.clientX, y: event.clientY, time: performance.now() };
+    if (previewLastTap && point.time - previewLastTap.time < 300 &&
+        Math.hypot(point.x - previewLastTap.x, point.y - previewLastTap.y) < 28) {
+      togglePreviewZoom(point);
+      previewLastTap = null;
+    } else previewLastTap = point;
+  });
+  // Taps are resolved above so the first tap of a double-tap and synthesized clicks cannot close the preview.
+  lightboxMask.addEventListener('click', event => {
+    if (!event.target.closest('.lightbox-controls')) event.preventDefault();
+  });
+  lightboxMask.addEventListener('dblclick', event => event.preventDefault());
+  lightboxMask.addEventListener('contextmenu', event => event.preventDefault());
 
   // 13. Search Filtering
   // The search bar sits above the timeline in the layout. Keep the messages at the bottom where
@@ -1662,15 +1996,15 @@
   [
     [['menu-all', 'setting-open-all'], goAllRecords],
     [['menu-month', 'setting-open-month'], browseByMonth],
-    [['menu-search', 'setting-open-search'], openSearch],
-    [['menu-switch'], showQrModal]
+    [['menu-search', 'setting-open-search'], openSearch]
   ].forEach(([ids, action]) => ids.forEach((id) => {
     const row = document.getElementById(id);
     if (row) row.addEventListener('click', () => {
-      settingsModal.classList.remove('open');
+      hideSettings();
       action();
     });
   }));
+  document.getElementById('menu-switch').addEventListener('click', showQrModal);
 
   // Connection rows: the connected computer (tap to reconnect and sync) and the pairing / connection entry.
   const menuHostRow = document.getElementById('menu-host-sync');
@@ -1684,7 +2018,8 @@
     document.getElementById('menu-host-sub').textContent = `${statusText.textContent} · ${location.host}`;
     menuSwitch.hidden = nativeApp;
     menuScan.hidden = menuPair.hidden = !nativeApp;
-    document.getElementById('menu-switch-label').textContent = isHost ? '显示配对二维码' : (isMobile ? '扫码更换电脑' : '连接管理');
+    document.getElementById('menu-switch-label').textContent = isHost ? '配对二维码' : (isMobile ? '扫码更换电脑' : '连接管理');
+    if (isHost) menuSwitch.querySelector('svg').outerHTML = window.LinkFlowIcons.svg('qr', 22, 1.8);
   }
   openSettingsBtn.addEventListener('click', refreshMenuHost);
   menuHostRow.addEventListener('click', () => {
@@ -1696,16 +2031,22 @@
 
   // Closes the topmost layer: menu, lightbox, dialog, search, month view. Used by the Android back key and the PC Esc key.
   function closeTopLayer() {
+    const actionSheet = document.querySelector('.action-sheet-mask');
+    if (actionSheet) { actionSheet.remove(); return true; }
+    if (helpModal.classList.contains('open')) { closeHelp(); return true; }
     if (document.querySelector('.compact-menu')) {
       document.querySelectorAll('.compact-menu, .compact-menu-mask').forEach((el) => el.remove());
       return true;
     }
-    if (lightboxMask.classList.contains('open')) { lightboxMask.classList.remove('open'); return true; }
+    if (lightboxMask.classList.contains('open')) { closeLightbox(); return true; }
     if (document.querySelector('.month-dd.open')) { closeMonthDropdowns(); return true; }
     if (clearConfirmModal.classList.contains('open')) { closeClearConfirm(); return true; }
     for (const id of ['qr-modal', 'connection-modal', 'settings-modal']) {
       const el = document.getElementById(id);
-      if (el && el.classList.contains('open')) { el.classList.remove('open'); return true; }
+      if (el && el.classList.contains('open')) {
+        if (el === settingsModal) hideSettings(); else el.classList.remove('open');
+        return true;
+      }
     }
     if (document.activeElement === searchInput) { searchInput.blur(); return true; }
     if (searchBar.classList.contains('active')) { closeSearch(); return true; }
@@ -1990,10 +2331,9 @@
     messageInput.addEventListener('input', window.LinkFlowSendMode);
 
     // Menu: views and the connected computer.
-    const closeMenu = () => settingsModal.classList.remove('open');
     openSettingsBtn.addEventListener('click', () => { app.classList.remove('compact'); });
-    menuScan.addEventListener('click', () => { closeMenu(); window.location.href = 'linkflow://scan'; });
-    menuPair.addEventListener('click', () => { closeMenu(); window.location.href = 'linkflow://pair'; });
+    menuScan.addEventListener('click', () => { window.location.href = 'linkflow://scan'; });
+    menuPair.addEventListener('click', () => { window.location.href = 'linkflow://pair'; });
 
     // Title bar and search collapse while reading down the list, expand when scrolling back up.
     let touching = false;

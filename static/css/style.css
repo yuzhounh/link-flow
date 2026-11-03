@@ -1225,6 +1225,8 @@ body.is-mobile .tool-buttons {
   display: flex;
 }
 
+#qr-modal, #connection-modal { z-index: 210; }
+
 .modal-box {
   background-color: var(--card-bg);
   border-radius: 20px;
@@ -1242,6 +1244,16 @@ body.is-mobile .tool-buttons {
   position: relative;
   box-sizing: border-box;
 }
+
+.help-page { display: none; position: fixed; inset: 0; z-index: 200; overflow: hidden; box-sizing: border-box; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); background: var(--card-bg); }
+.help-page.open { display: flex; }
+.help-page-layout { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; }
+.help-page-header { display: flex; align-items: center; justify-content: space-between; flex: none; min-height: 60px; padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); box-sizing: border-box; gap: 12px; }
+.help-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px max(20px, env(safe-area-inset-right)) 24px max(20px, env(safe-area-inset-left)); font-size: var(--fs-body); line-height: 1.7; overflow-wrap: anywhere; }
+.help-content h3 { font-size: inherit; margin: 16px 0 6px; }
+.help-content h3:first-child { margin-top: 0; }
+.help-content p { margin: 0 0 12px; color: var(--text-sub); }
+#help-modal .close-btn { flex: none; min-width: 40px; min-height: 40px; }
 
 .modal-header {
   display: flex;
@@ -1388,6 +1400,8 @@ html.is-mobile .d-row { display: none; }
 
 /* Lightbox Image Preview */
 #lightbox-mask {
+  touch-action: none;
+  overflow: hidden;
   display: none;
   position: fixed;
   top: 0;
@@ -1405,7 +1419,10 @@ html.is-mobile .d-row { display: none; }
   display: flex;
 }
 
-#lightbox-img {
+#lightbox-img, .lightbox-outgoing {
+  user-select: none;
+  -webkit-user-select: none;
+  background-color: #fff;
   max-width: 92vw;
   max-height: 90vh;
   width: auto;
@@ -1414,6 +1431,35 @@ html.is-mobile .d-row { display: none; }
   border-radius: var(--radius-sm);
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
 }
+.lightbox-outgoing { position: absolute; pointer-events: none; }
+
+.lightbox-controls {
+  z-index: 1;
+  position: absolute;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px;
+  border-radius: 28px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  cursor: default;
+}
+.lightbox-controls button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.lightbox-controls button:disabled { opacity: 0.3; cursor: default; }
+.lightbox-controls button:active:not(:disabled) { background: rgba(255, 255, 255, 0.2); }
+#lightbox-position { min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; }
 
 /* Toast notifications */
 [hidden] { display: none !important; }
@@ -1895,13 +1941,18 @@ html.is-mobile .send-btn { background: var(--send-btn); }
 
 /* Full-screen menu */
 html.is-mobile #settings-modal { padding: 0; background: var(--page-gradient); align-items: stretch; justify-content: stretch; }
+html.is-mobile #help-modal { padding: 0; background: var(--page-gradient); }
+html.is-mobile #help-modal .help-page-header { padding: 0 16px; }
 html.is-mobile #settings-modal .modal-box {
   max-width: none; max-height: none; height: 100%; border-radius: 0; box-shadow: none; background: transparent;
   padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px)); gap: 0; overflow-y: auto;
 }
-html.is-mobile #settings-modal .modal-header { height: 60px; flex: none; }
-html.is-mobile #settings-modal .modal-title { font-size: 18px; font-weight: 700; }
-html.is-mobile #settings-modal .close-btn { width: 48px; height: 48px; margin-right: -12px; border-radius: 16px; color: var(--text-main); }
+html.is-mobile #settings-modal .modal-header,
+html.is-mobile #help-modal .help-page-header { height: 60px; flex: none; }
+html.is-mobile #settings-modal .modal-title,
+html.is-mobile #help-modal .modal-title { font-size: 18px; font-weight: 700; }
+html.is-mobile #settings-modal .close-btn,
+html.is-mobile #help-modal .close-btn { width: 48px; height: 48px; margin-right: -12px; border-radius: 16px; color: var(--text-main); }
 html.is-mobile .menu-section { padding: 8px 0; border-bottom: 1px solid var(--border-color); }
 html.is-mobile .menu-row {
   display: flex; align-items: center; gap: 16px; width: 100%; height: 48px; min-height: 48px; padding: 0 12px; box-sizing: border-box;
@@ -1948,3 +1999,17 @@ html.is-mobile .confirm-btn, html.is-mobile .connection-action { border-radius: 
 
 html.is-mobile .menu-gear.spinning svg { animation: lf-spin 0.9s linear infinite; }
 @keyframes lf-spin { to { transform: rotate(360deg); } }
+
+/* Language toggle button styles */
+.lang-toggle-btn {
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  user-select: none;
+}
+.lang-toggle-text {
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1;
+}
