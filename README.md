@@ -4,6 +4,8 @@
 
 <h1 align="center">Link Flow</h1>
 
+<p align="center">简体中文 · <a href="README.en.md">English</a></p>
+
 <p align="center"><strong>手机、平板与电脑局域网直连，随手传文字、图片和文件。</strong></p>
 
 <p align="center">
