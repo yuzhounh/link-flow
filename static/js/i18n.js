@@ -42,7 +42,11 @@
     '搜索记录': 'Search Records',
     '设备名称': 'Device Name',
     '电脑': 'PC',
-    '扫码更换电脑': 'Scan to switch PC',
+    '扫码更换电脑': 'Scan to Switch PC',
+    '配对二维码': 'Pairing QR Code',
+    '可选 IP: ': 'Select IP: ',
+    '可选 IP:': 'Select IP:',
+    '请保持本设备与电脑在可互通的网络中。更换电脑时，用手机相机扫描新电脑 LinkFlow 中的配对二维码，再打开链接。': 'Keep this device and PC on a reachable network. When switching PCs, scan the pairing QR code in LinkFlow on the new PC with your phone camera and open the link.',
     '摄像头扫码连接': 'Scan QR code with camera',
     '粘贴配对链接': 'Paste pairing link',
     '深色模式': 'Dark Mode',
@@ -80,6 +84,7 @@
     '设备名称': 'Device name',
     '返回设置': 'Back to settings',
     '切换语言 (L)': 'Switch language (L)',
+    '配对二维码': 'Pairing QR Code',
     '重新连接并同步': 'Reconnect and sync'
   };
 

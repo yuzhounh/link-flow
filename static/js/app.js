@@ -555,7 +555,13 @@
     if (!stats || !storageStatsText) return;
     storageStats = stats;
     const mb = (stats.total_file_size / (1024 * 1024)).toFixed(1);
-    storageStatsText.textContent = `${stats.total_messages} 条记录 · ${mb} MB`;
+    const count = stats.total_messages;
+    const isEn = window.LinkFlowI18N && window.LinkFlowI18N.isEn();
+    if (isEn) {
+      storageStatsText.textContent = `${count} ${count === 1 ? 'record' : 'records'} · ${mb} MB`;
+    } else {
+      storageStatsText.textContent = `${count} 条记录 · ${mb} MB`;
+    }
   }
 
   // 5. Message Timeline Rendering
@@ -1391,7 +1397,9 @@
 
   function updateHistoryBannerCount() {
     if (historyBannerCount) {
-      historyBannerCount.textContent = `共 ${monthCounts[currentViewMonth] ?? allMessages.length} 条`;
+      const cnt = monthCounts[currentViewMonth] ?? allMessages.length;
+      const isEn = window.LinkFlowI18N && window.LinkFlowI18N.isEn();
+      historyBannerCount.textContent = isEn ? `${cnt} ${cnt === 1 ? 'record' : 'records'}` : `共 ${cnt} 条`;
     }
     if (typeof updateViewTitle === 'function') updateViewTitle();
   }
@@ -1418,8 +1426,10 @@
   }
 
   function monthDdItem(value, label, count, selected) {
+    const isEn = window.LinkFlowI18N && window.LinkFlowI18N.isEn();
+    const countText = isEn ? `${count} ${count === 1 ? 'record' : 'records'}` : `${count} 条`;
     return `<button type="button" class="month-dd-item${selected ? ' selected' : ''}" data-value="${value}">` +
-      `<span class="month-dd-label">${label}</span><span class="month-dd-count">${count} 条</span></button>`;
+      `<span class="month-dd-label">${label}</span><span class="month-dd-count">${countText}</span></button>`;
   }
 
   function renderMonthNav(monthStr) {
@@ -1601,16 +1611,24 @@
   clearAllBtn.addEventListener('click', () => {
     const mb = storageStats ? (storageStats.total_file_size / (1024 * 1024)).toFixed(1) : '?';
     const count = storageStats ? storageStats.total_messages : '所有';
-    clearConfirmText.textContent = `将删除 ${count} 条记录和 ${mb} MB 的已存文件，包括手机发来的图片与文件。此操作无法恢复。`;
+    const isEn = window.LinkFlowI18N && window.LinkFlowI18N.isEn();
+    if (isEn) {
+      const rec = count === '所有' ? 'all records' : (count === 1 ? '1 record' : `${count} records`);
+      clearConfirmText.textContent = `This will permanently delete ${rec} and ${mb} MB of files, including photos and documents received from phones. This action cannot be undone.`;
+      clearConfirmOk.textContent = `Clear (3)`;
+    } else {
+      clearConfirmText.textContent = `将删除 ${count} 条记录和 ${mb} MB 的已存文件，包括手机发来的图片与文件。此操作无法恢复。`;
+      clearConfirmOk.textContent = `清空 (3)`;
+    }
     let left = 3;
     clearConfirmOk.disabled = true;
-    clearConfirmOk.textContent = `清空 (${left})`;
     clearInterval(clearCountdown);
     clearCountdown = setInterval(() => {
       left -= 1;
-      if (left > 0) { clearConfirmOk.textContent = `清空 (${left})`; return; }
+      const curEn = window.LinkFlowI18N && window.LinkFlowI18N.isEn();
+      if (left > 0) { clearConfirmOk.textContent = curEn ? `Clear (${left})` : `清空 (${left})`; return; }
       clearInterval(clearCountdown);
-      clearConfirmOk.textContent = '清空';
+      clearConfirmOk.textContent = curEn ? 'Clear' : '清空';
       clearConfirmOk.disabled = false;
     }, 1000);
     clearConfirmModal.classList.add('open');
@@ -2018,7 +2036,8 @@
     document.getElementById('menu-host-sub').textContent = `${statusText.textContent} · ${location.host}`;
     menuSwitch.hidden = nativeApp;
     menuScan.hidden = menuPair.hidden = !nativeApp;
-    document.getElementById('menu-switch-label').textContent = isHost ? '配对二维码' : (isMobile ? '扫码更换电脑' : '连接管理');
+    const rawLabel = isHost ? '配对二维码' : (isMobile ? '扫码更换电脑' : '连接管理');
+    document.getElementById('menu-switch-label').textContent = window.LinkFlowI18N ? window.LinkFlowI18N.t(rawLabel) : rawLabel;
     if (isHost) menuSwitch.querySelector('svg').outerHTML = window.LinkFlowIcons.svg('qr', 22, 1.8);
   }
   openSettingsBtn.addEventListener('click', refreshMenuHost);
@@ -2252,14 +2271,19 @@
 
   function updateViewTitle() {
     const keyword = searchInput.value.trim();
-    const title = keyword ? `搜索：${keyword}` : (currentViewMonth ? '按月份浏览' : '全部记录');
+    const isEn = window.LinkFlowI18N && window.LinkFlowI18N.isEn();
+    const rawTitle = keyword ? `搜索：${keyword}` : (currentViewMonth ? '按月份浏览' : '全部记录');
+    const title = isEn
+      ? (keyword ? `Search: ${keyword}` : (currentViewMonth ? 'Browse by Month' : 'All Records'))
+      : rawTitle;
     const viewTitle = document.getElementById('view-title');
     if (viewTitle) {
       viewTitle.textContent = title;
       if (currentViewMonth && !keyword) {
         const count = document.createElement('span');
         count.className = 'view-count';
-        count.textContent = ` · 共 ${monthCounts[currentViewMonth] ?? allMessages.length} 条`;
+        const cnt = monthCounts[currentViewMonth] ?? allMessages.length;
+        count.textContent = isEn ? ` · ${cnt} ${cnt === 1 ? 'record' : 'records'}` : ` · 共 ${cnt} 条`;
         viewTitle.appendChild(count);
       }
     }
@@ -2368,3 +2392,11 @@
   connectWebSocket();
   window.LinkFlowUiReady = true;
 })();
+
+  if (window.LinkFlowI18N && window.LinkFlowI18N.onChange) {
+    window.LinkFlowI18N.onChange(() => {
+      refreshMenuHost();
+      if (storageStats) updateStorageStats(storageStats);
+      updateHistoryBannerCount();
+    });
+  }
