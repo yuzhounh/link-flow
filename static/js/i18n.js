@@ -1,5 +1,5 @@
 // Shell-only bilingual (Simplified Chinese / English) runtime for LinkFlow.
-// Provides 1-click toggle in header and settings dialog with L key shortcut.
+// Provides 1-click toggle in settings dialog with L key shortcut and storage sync.
 
 (function () {
   const STORAGE_KEY = 'linkflow_lang';
@@ -44,22 +44,23 @@
     '电脑': 'PC',
     '扫码更换电脑': 'Scan to Switch PC',
     '配对二维码': 'Pairing QR Code',
-    '可选 IP: ': 'Select IP: ',
-    '可选 IP:': 'Select IP:',
-    '请保持本设备与电脑在可互通的网络中。更换电脑时，用手机相机扫描新电脑 LinkFlow 中的配对二维码，再打开链接。': 'Keep this device and PC on a reachable network. When switching PCs, scan the pairing QR code in LinkFlow on the new PC with your phone camera and open the link.',
     '摄像头扫码连接': 'Scan QR code with camera',
     '粘贴配对链接': 'Paste pairing link',
     '深色模式': 'Dark Mode',
     '界面语言': 'Language',
     '使用说明': 'Help & Guide',
     '清空记录与文件': 'Clear records & files',
+    '正在统计存储状态...': 'Calculating storage stats...',
     '清空': 'Clear',
     '取消': 'Cancel',
     '清空所有记录与文件？': 'Clear all records and files?',
     '已复制到剪贴板': 'Copied to clipboard',
     '复制链接': 'Copy Link',
     '关闭': 'Close',
-    '关闭连接管理': 'Close Connection Management'
+    '关闭连接管理': 'Close Connection Management',
+    '可选 IP: ': 'Select IP: ',
+    '可选 IP:': 'Select IP:',
+    '请保持本设备与电脑在可互通的网络中。更换电脑时，用手机相机扫描新电脑 LinkFlow 中的配对二维码，再打开链接。': 'Keep this device and PC on a reachable network. When switching PCs, scan the pairing QR code in LinkFlow on the new PC with your phone camera and open the link.'
   };
 
   const ATTR = {
@@ -88,12 +89,20 @@
     '重新连接并同步': 'Reconnect and sync'
   };
 
+  // Bidirectional reverse dictionaries
+  const ZH = {};
+  for (const [zh, en] of Object.entries(EN)) {
+    ZH[en] = zh;
+  }
+  const ATTR_ZH = {};
+  for (const [zh, en] of Object.entries(ATTR)) {
+    ATTR_ZH[en] = zh;
+  }
+
   const DOC = {
     title: { zh: '文件传输助手', en: 'LinkFlow - File Transfer' }
   };
 
-  const originalText = new WeakMap();
-  const originalAttrs = new WeakMap();
   const listeners = new Set();
 
   function normalize(lang) {
@@ -119,56 +128,40 @@
   }
 
   function applyTextNode(node, en) {
-    if (originalText.has(node)) {
-      const original = originalText.get(node);
-      if (en) {
-        const key = original.trim();
-        node.nodeValue = Object.prototype.hasOwnProperty.call(EN, key)
-          ? pad(original, EN[key])
-          : original;
-      } else {
-        node.nodeValue = original;
-        originalText.delete(node);
-      }
-      return;
-    }
-    if (!en) return;
     const current = node.nodeValue;
-    const key = current.trim();
-    if (!key || !Object.prototype.hasOwnProperty.call(EN, key)) return;
-    originalText.set(node, current);
-    node.nodeValue = pad(current, EN[key]);
+    const key = (current || '').trim();
+    if (!key) return;
+
+    if (en) {
+      if (Object.prototype.hasOwnProperty.call(EN, key)) {
+        node.nodeValue = pad(current, EN[key]);
+      }
+    } else {
+      if (Object.prototype.hasOwnProperty.call(ZH, key)) {
+        node.nodeValue = pad(current, ZH[key]);
+      }
+    }
   }
 
   function applyAttr(el, attr, en) {
     if (!el.hasAttribute(attr)) return;
-    let map = originalAttrs.get(el);
-    if (!map) {
-      map = new Map();
-      originalAttrs.set(el, map);
-    }
-    if (!map.has(attr)) map.set(attr, el.getAttribute(attr));
-    const original = map.get(attr);
-    const key = (original || '').trim();
-    if (en && Object.prototype.hasOwnProperty.call(ATTR, key)) {
-      el.setAttribute(attr, ATTR[key]);
+    const current = el.getAttribute(attr);
+    const key = (current || '').trim();
+    if (!key) return;
+
+    if (en) {
+      if (Object.prototype.hasOwnProperty.call(ATTR, key)) {
+        el.setAttribute(attr, ATTR[key]);
+      }
     } else {
-      el.setAttribute(attr, original);
+      if (Object.prototype.hasOwnProperty.call(ATTR_ZH, key)) {
+        el.setAttribute(attr, ATTR_ZH[key]);
+      }
     }
   }
 
   function syncUI() {
     const en = isEn();
-    const label = en ? '中' : 'EN';
-    const title = en ? '切换为简体中文 (L)' : 'Switch to English (L)';
-    const headerBtn = document.getElementById('header-lang-btn');
-    if (headerBtn) {
-      headerBtn.title = title;
-      headerBtn.setAttribute('aria-label', title);
-      const span = headerBtn.querySelector('.lang-toggle-text');
-      if (span) span.textContent = label;
-      else headerBtn.textContent = label;
-    }
     const valEl = document.getElementById('setting-lang-value');
     if (valEl) {
       valEl.textContent = en ? 'English' : '简体中文';
@@ -206,7 +199,7 @@
     } catch {}
     applyStatic();
     listeners.forEach((cb) => {
-      try { cb(next); } catch {}
+      try { cb(next); } catch (e) { console.error('LinkFlow i18n listener error', e); }
     });
     return next;
   }
@@ -215,9 +208,13 @@
     return setLang(isEn() ? 'zh' : 'en');
   }
 
-  function t(key) {
-    if (!isEn()) return key;
-    return EN[key] || key;
+  function t(key, targetLang) {
+    const lang = targetLang || getLang();
+    if (lang === 'en') {
+      return EN[key] || key;
+    } else {
+      return ZH[key] || key;
+    }
   }
 
   function onChange(cb) {
@@ -227,8 +224,6 @@
 
   function init() {
     applyStatic();
-    const headerBtn = document.getElementById('header-lang-btn');
-    if (headerBtn) headerBtn.addEventListener('click', toggleLang);
     const settingRow = document.getElementById('setting-lang-row');
     if (settingRow) settingRow.addEventListener('click', toggleLang);
 
@@ -243,12 +238,11 @@
     });
   }
 
-  
-    window.addEventListener('storage', (e) => {
-      if (e.key === STORAGE_KEY && SUPPORTED.includes(e.newValue)) {
-        setLang(e.newValue);
-      }
-    });
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY && SUPPORTED.includes(e.newValue)) {
+      setLang(e.newValue);
+    }
+  });
 
   window.LinkFlowI18N = {
     getLang,

@@ -273,24 +273,36 @@
   let liveSyncRunning = false;
   let deferredLiveEvents = [];
 
+  let currentConnState = 'connecting';
+  function updateStatusText() {
+    const isEn = window.LinkFlowI18N ? window.LinkFlowI18N.isEn() : false;
+    if (currentConnState === 'connected') {
+      statusText.textContent = isHost
+        ? (isEn ? 'Device connected' : '已连接设备')
+        : (isEn ? 'PC connected' : '已连接电脑');
+    } else if (currentConnState === 'retrying') {
+      const long = !isHost && disconnectedSince && Date.now() - disconnectedSince > LONG_DISCONNECT_MS;
+      if (long) {
+        statusText.textContent = isEn ? 'Disconnected, verify same Wi-Fi' : '已断开，请确认与电脑在同一 Wi-Fi';
+      } else {
+        statusText.textContent = isEn ? 'Disconnected, reconnecting…' : '已断开，重连中…';
+      }
+    } else if (currentConnState === 'unpaired') {
+      statusText.textContent = isEn ? 'Pairing expired, please re-scan' : '配对已失效，请重新扫码';
+    } else {
+      statusText.textContent = isEn ? 'Connecting…' : '正在连接…';
+    }
+  }
+
   function setConnState(state) {
+    currentConnState = state;
     window.LinkFlowServerOnline = state === 'connected';
     window.LinkFlowDownloads?.apply();
     statusDot.classList.remove('online', 'retrying', 'unpaired');
-    if (state === 'connected') {
-      statusDot.classList.add('online');
-      // Non-host devices (phone, tablet, other computers) connect to the host PC.
-      statusText.textContent = isHost ? '已连接设备' : '已连接电脑';
-    } else if (state === 'retrying') {
-      statusDot.classList.add('retrying');
-      const long = !isHost && disconnectedSince && Date.now() - disconnectedSince > LONG_DISCONNECT_MS;
-      statusText.textContent = long ? '已断开，请确认与电脑在同一 Wi-Fi' : '已断开，重连中…';
-    } else if (state === 'unpaired') {
-      statusDot.classList.add('unpaired');
-      statusText.textContent = '配对已失效，请重新扫码';
-    } else {
-      statusText.textContent = '正在连接…';
-    }
+    if (state === 'connected') statusDot.classList.add('online');
+    else if (state === 'retrying') statusDot.classList.add('retrying');
+    else if (state === 'unpaired') statusDot.classList.add('unpaired');
+    updateStatusText();
   }
 
   function connectWebSocket() {
@@ -2036,8 +2048,16 @@
     document.getElementById('menu-host-sub').textContent = `${statusText.textContent} · ${location.host}`;
     menuSwitch.hidden = nativeApp;
     menuScan.hidden = menuPair.hidden = !nativeApp;
-    const rawLabel = isHost ? '配对二维码' : (isMobile ? '扫码更换电脑' : '连接管理');
-    document.getElementById('menu-switch-label').textContent = window.LinkFlowI18N ? window.LinkFlowI18N.t(rawLabel) : rawLabel;
+    const isEn = window.LinkFlowI18N ? window.LinkFlowI18N.isEn() : false;
+    let label;
+    if (isHost) {
+      label = isEn ? 'Pairing QR Code' : '配对二维码';
+    } else if (isMobile) {
+      label = isEn ? 'Scan to Switch PC' : '扫码更换电脑';
+    } else {
+      label = isEn ? 'Connection Management' : '连接管理';
+    }
+    document.getElementById('menu-switch-label').textContent = label;
     if (isHost) menuSwitch.querySelector('svg').outerHTML = window.LinkFlowIcons.svg('qr', 22, 1.8);
   }
   openSettingsBtn.addEventListener('click', refreshMenuHost);
@@ -2386,17 +2406,23 @@
 
   }
 
+  // 17. Internationalization listener
+  function onLanguageChange() {
+    refreshMenuHost();
+    if (storageStats) updateStorageStats(storageStats);
+    updateHistoryBannerCount();
+    updateViewTitle();
+    if (typeof updateStatusText === 'function') updateStatusText();
+    if (currentViewMonth && typeof renderMonthNav === 'function') renderMonthNav(currentViewMonth);
+  }
+
+  if (window.LinkFlowI18N && window.LinkFlowI18N.onChange) {
+    window.LinkFlowI18N.onChange(onLanguageChange);
+  }
+
   // Initialize
   updateViewTitle();
   initSingleInstance();
   connectWebSocket();
   window.LinkFlowUiReady = true;
 })();
-
-  if (window.LinkFlowI18N && window.LinkFlowI18N.onChange) {
-    window.LinkFlowI18N.onChange(() => {
-      refreshMenuHost();
-      if (storageStats) updateStorageStats(storageStats);
-      updateHistoryBannerCount();
-    });
-  }
