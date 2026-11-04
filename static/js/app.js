@@ -202,15 +202,15 @@
   function syncThemeUI(isDark) {
     const themeIconEl = document.getElementById('setting-theme-icon');
     if (themeIconEl) {
-      themeIconEl.innerHTML = isDark ? MOON_PATH : SUN_PATH;
+      themeIconEl.innerHTML = isDark ? SUN_PATH : MOON_PATH;
     }
     const themeValEl = document.getElementById('setting-theme-value');
     if (themeValEl) {
       const isEn = window.LinkFlowI18N && window.LinkFlowI18N.isEn();
       if (isDark) {
-        themeValEl.textContent = isEn ? 'Dark' : '深色';
-      } else {
         themeValEl.textContent = isEn ? 'Light' : '浅色';
+      } else {
+        themeValEl.textContent = isEn ? 'Dark' : '深色';
       }
     }
   }
