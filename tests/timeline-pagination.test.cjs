@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const source=fs.readFileSync(require.resolve('../static/js/app.js'),'utf8');
 function between(a,b){const from=source.indexOf(a),to=source.indexOf(b,from);assert.ok(from>=0&&to>from);return source.slice(from,to);}
 class Node {
-  constructor(){this.children=[];this.className='';this.scrollTop=70;this.classList={contains:name=>this.className.split(' ').includes(name)};}
+  constructor(){this.children=[];this.className='';this.scrollTop=70;this.dataset={};this.classList={contains:name=>this.className.split(' ').includes(name)};}
   appendChild(node){node.parent=this;this.children.push(node);return node;}
   prepend(node){const nodes=node.fragment?node.children:[node];for(const n of nodes)n.parent=this;this.children.unshift(...nodes);}
   remove(){if(this.parent)this.parent.children=this.parent.children.filter(n=>n!==this);}

@@ -196,6 +196,25 @@
 
   // Theme initialization
   const themeColorMeta = document.getElementById('theme-color-meta');
+  const SUN_PATH = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>';
+  const MOON_PATH = '<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>';
+
+  function syncThemeUI(isDark) {
+    const themeIconEl = document.getElementById('setting-theme-icon');
+    if (themeIconEl) {
+      themeIconEl.innerHTML = isDark ? MOON_PATH : SUN_PATH;
+    }
+    const themeValEl = document.getElementById('setting-theme-value');
+    if (themeValEl) {
+      const isEn = window.LinkFlowI18N && window.LinkFlowI18N.isEn();
+      if (isDark) {
+        themeValEl.textContent = isEn ? 'Dark' : '深色';
+      } else {
+        themeValEl.textContent = isEn ? 'Light' : '浅色';
+      }
+    }
+  }
+
   function applyTheme(isDark) {
     if (isDark) {
       document.documentElement.setAttribute('data-theme', 'dark');
@@ -206,6 +225,7 @@
       if (themeColorMeta) themeColorMeta.content = isMobile ? '#f3f2fa' : '#f7f7f7';
       if (settingDarkTheme) settingDarkTheme.checked = false;
     }
+    syncThemeUI(isDark);
     syncWindowChrome();
   }
 
@@ -223,6 +243,12 @@
         dark: document.documentElement.getAttribute('data-theme') === 'dark'
       });
     } catch (e) { /* not inside the desktop window */ }
+  }
+
+  if (window.LinkFlowI18N && window.LinkFlowI18N.onChange) {
+    window.LinkFlowI18N.onChange(() => {
+      syncThemeUI(document.documentElement.getAttribute('data-theme') === 'dark');
+    });
   }
 
   const savedTheme = localStorage.getItem('linkflow_theme');
@@ -2214,6 +2240,7 @@
   }
 
   function showDuplicateModal() {
+    const t = (text) => window.LinkFlowI18N?.t(text) ?? text;
     let dupMask = document.getElementById('duplicate-modal');
     if (!dupMask) {
       dupMask = document.createElement('div');
@@ -2227,14 +2254,14 @@
               <path d="M16 3v18l4.5-4.5"></path>
             </svg>
           </div>
-          <div class="duplicate-title">文件传输助手已在运行</div>
+          <div class="duplicate-title">${t('文件传输助手已在运行')}</div>
           <div class="duplicate-desc">
-            检测到当前浏览器中已有正在运行的文件传输助手。<br>
-            为避免重复占用内存及多标签堆积，请直接切换回已打开的标签页。
+            ${t('检测到当前浏览器中已有正在运行的文件传输助手。')}<br>
+            ${t('为避免重复占用内存及多标签堆积，请直接切换回已打开的标签页。')}
           </div>
           <div class="duplicate-actions">
-            <button id="close-duplicate-btn" class="dup-btn dup-btn-primary">关闭当前标签页</button>
-            <button id="stay-duplicate-btn" class="dup-btn dup-btn-secondary">仍在此标签页使用</button>
+            <button id="close-duplicate-btn" class="dup-btn dup-btn-primary">${t('关闭当前标签页')}</button>
+            <button id="stay-duplicate-btn" class="dup-btn dup-btn-secondary">${t('仍在此标签页使用')}</button>
           </div>
         </div>
       `;
@@ -2243,7 +2270,7 @@
       document.getElementById('close-duplicate-btn').addEventListener('click', () => {
         window.close();
         setTimeout(() => {
-          showToast('若浏览器限制关闭，请直接点击顶部标签栏 ✕ 关闭');
+          showToast(t('若浏览器限制关闭，请直接点击顶部标签栏 ✕ 关闭'));
         }, 300);
       });
 
@@ -2254,7 +2281,7 @@
         if (broadcastChannel) {
           broadcastChannel.postMessage({ type: 'CLAIM_MASTER', tabId: currentTabId });
         }
-        showToast('已切换至当前标签页为主界面');
+        showToast(t('已切换至当前标签页为主界面'));
       });
     } else {
       dupMask.style.display = 'flex';
@@ -2368,8 +2395,9 @@
     };
     const icon = (name) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
 
-    openSettingsBtn.title = '菜单';
-    openSettingsBtn.setAttribute('aria-label', '菜单');
+    const menuLabel = window.LinkFlowI18N?.t('菜单') ?? '菜单';
+    openSettingsBtn.title = menuLabel;
+    openSettingsBtn.setAttribute('aria-label', menuLabel);
 
     // Compact popup menu (<= 240dp) anchored to a button.
     function closeCompactMenu() {

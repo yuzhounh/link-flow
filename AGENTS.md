@@ -1,14 +1,7 @@
 # LinkFlow Original Workspace
 
-- Default Windows EXE upgrade behavior: background download of a complete verified package; silent installation only after true process exit; next launch uses the new version. No update popups or forced restarts. Preserve the complete `data/` directory, pairing, messages, files and settings; do not interrupt transfers to update. Use the hub's `AGENTS.md` section “Default Windows EXE Update Behavior” and `review/exe_update_policy.md`; this rule does not mean the updater is already implemented here.
-
-- This is the only active LinkFlow workspace: `D:\Archives\20260919 Link Flow`.
-- The management hub is `D:\Archives\20260924 Multi-Repo Maintenance`. Read its `AGENTS.md` for shared rules and `PROJECT_WORKSPACE_MAPPING.md` for the current project index.
-- Edit, test, build, and run Git commands here. Keep project-specific review records and deliverables here; do not create a second project copy in the hub.
-- Snapshots belong under `D:\Archives\Backups` and require an explicit user request; do not overwrite existing snapshots.
-- Netlify team `yuzhounh` deployments remain paused until 2026-10-21 15:00 Asia/Shanghai. General push/deploy requests do not override the hold.
-- After the reset, submit to Netlify at most once per project/site in any rolling 7-day (168-hour) period; accumulate updates. Production, preview, automatic and failed remote submissions share the limit. Use [skip netlify] on ordinary GitHub pushes, and follow the hub AGENTS.md and review/netlify_deployments.md for history and next eligible time. Other platforms continue normally; do not create an automatic weekly task.
-
+- Windows updates follow the [shared Windows update rules and implementation status](<D:/Archives/20260924 Multi-Repo Maintenance/AGENTS.md#default-windows-exe-update-behavior>). Preserve the complete `data/` directory, pairing, messages, files and settings. Do not interrupt transfers to update.
+- Follow the [shared maintenance rules](<D:/Archives/20260924 Multi-Repo Maintenance/AGENTS.md>) for the active workspace, builds, releases and snapshots.
 
 ## Data Directory Root (user instructions, 2026-10-21)
 
@@ -18,3 +11,10 @@
 - Update the daily run folder only with `scripts\Update-LocalDaily.ps1` (`-CheckOnly` to preview, `-StopRunning` to exit a running instance with its own `--stop`, `-Start` to restart and verify). It publishes with `dotnet publish -r win-x64 --self-contained` into `dist\LinkFlow-<version>-local`, refuses to run if that folder already holds `static\` or `data\` (report it, do not delete), and with `-Start` checks that `data\runtime.json` in the project root shows the new PID and that the message count did not drop. It does not touch the desktop shortcut or Run entries; check them separately. Do not copy `-publish` folders or `static\` into `-local` by hand.
 - Packaged builds must resolve to this project's root: keep only the executable and its runtime files in `dist\LinkFlow-<version>-local`, with no `static` or `data` beside them. After any packaging or update, check `data\linkflow.log` and `data\runtime.json` in the project root for the new start entry and PID, and compare the message count before and after.
 - Do not delete or merge a stray `data\` folder created by a wrong root; report it and let the user decide.
+
+## LinkFlow Android APK Build (Gradle)
+
+- Run `.\gradlew.bat --no-daemon assembleRelease lintRelease` in the original workspace’s `android` directory. Signing is read from the ignored `signing.properties` and `linkflow-release.jks`. Output is `app\build\outputs\apk\release\app-release.apk`.
+- **Agent sessions need a JVM flag**: in the Claude agent shell, Java fails with `Unable to establish loopback connection` (cause `SocketException: Invalid argument: connect` in `UnixDomainSockets`). Newer JDKs use AF_UNIX sockets for the NIO selector pipe on Windows, and the session's temp path breaks them. Plain TCP loopback is fine, and `java.io.tmpdir` or `preferIPv4Stack` do not help. Run the build with a short socket directory (run outside the sandbox):
+  - `$env:JAVA_TOOL_OPTIONS='-Djdk.net.unixdomain.tmpdir=C:\t'` (create an empty `C:\t` first; it cannot be removed by the agent).
+- **For an authorized APK release**: verify with `apksigner verify --verbose` (v2 scheme true), copy to the active project's `dist\LinkFlow-<version>-android.apk` and report its SHA-256. Keep the Windows app (`LinkFlow.csproj`) and APK (`build.gradle` versionName, bump versionCode) on the same version.

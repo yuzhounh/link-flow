@@ -135,7 +135,7 @@ body {
 
 #app-container {
   width: 100%;
-  max-width: 960px;
+  max-width: 680px;
   height: 100%;
   background-color: var(--bg-chat);
   display: flex;
@@ -1230,7 +1230,7 @@ body.is-mobile .tool-buttons {
 .modal-box {
   background-color: var(--card-bg);
   border-radius: 20px;
-  max-width: 420px;
+  max-width: 440px;
   width: 100%;
   max-height: calc(100dvh - 32px);
   max-height: calc(100vh - 32px);
@@ -1313,7 +1313,10 @@ html.is-mobile .d-row { display: none; }
 .modal-title-icon { display: flex; align-items: center; gap: 10px; }
 .modal-title-icon svg { flex: none; color: var(--text-sub); }
 .setting-sub { font-size: var(--fs-hint); color: var(--text-sub); margin-top: 2px; }
-.storage-info { min-width: 0; }
+.settings-list #clear-all-row { height: auto; min-height: 52px; padding: 6px 0; }
+.storage-info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.storage-info .setting-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.35; }
+.storage-info .setting-sub { font-size: var(--fs-hint); color: var(--text-sub); margin-top: 2px; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .danger-text-btn { flex: none; background: none; border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 16px; font-size: var(--fs-ctl); color: #ff4d4f; cursor: pointer; }
 .danger-text-btn:hover { background: rgba(255, 77, 79, 0.08); }
 .confirm-text { font-size: var(--fs-body); line-height: 1.6; color: var(--text-main); }
@@ -1548,11 +1551,14 @@ input:checked + .slider:before {
 }
 
 /* Mobile responsive adjustments */
-@media (max-width: 768px) {
+@media (max-width: 680px) {
   #app-container {
     max-width: 100%;
     box-shadow: none;
   }
+}
+
+@media (max-width: 768px) {
   header {
     height: 54px;
     padding: 0 12px;
@@ -1976,7 +1982,7 @@ html.is-mobile .settings-list .setting-row > .setting-input { flex: 0 1 150px; h
 html.is-mobile .settings-list .setting-action { border-radius: 16px; }
 html.is-mobile .setting-name-input { font-size: 15px; }
 html.is-mobile .settings-list .setting-row > .setting-value { flex: 0 1 auto; font-size: 12px; }
-html.is-mobile .settings-list #clear-all-row { padding: 0 12px; }
+html.is-mobile .settings-list #clear-all-row { height: auto; min-height: 54px; padding: 6px 12px; }
 /* Tapping the computer row reconnects and syncs; its icon spins while that runs. */
 .setting-action.spinning > svg:first-child { animation: lf-spin 0.9s linear infinite; }
 html.is-mobile .setting-label { font-size: 15px; }

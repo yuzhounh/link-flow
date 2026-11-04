@@ -47,6 +47,10 @@
     '摄像头扫码连接': 'Scan QR code with camera',
     '粘贴配对链接': 'Paste pairing link',
     '深色模式': 'Dark Mode',
+    '外观主题': 'Theme',
+    '主题模式': 'Theme',
+    '深色': 'Dark',
+    '浅色': 'Light',
     '界面语言': 'Language',
     '使用说明': 'Help & Guide',
     '清空记录与文件': 'Clear records & files',
@@ -58,12 +62,21 @@
     '复制链接': 'Copy Link',
     '关闭': 'Close',
     '关闭连接管理': 'Close Connection Management',
+    '菜单': 'Menu',
+    '文件传输助手已在运行': 'LinkFlow is already running',
+    '检测到当前浏览器中已有正在运行的文件传输助手。': 'LinkFlow is already open in this browser.',
+    '为避免重复占用内存及多标签堆积，请直接切换回已打开的标签页。': 'Switch back to the existing tab to avoid running a second copy.',
+    '关闭当前标签页': 'Close this tab',
+    '仍在此标签页使用': 'Use this tab anyway',
+    '若浏览器限制关闭，请直接点击顶部标签栏 ✕ 关闭': 'If the browser blocks closing this tab, use the tab’s close button.',
+    '已切换至当前标签页为主界面': 'This tab is now the main LinkFlow tab.',
     '可选 IP: ': 'Select IP: ',
     '可选 IP:': 'Select IP:',
     '请保持本设备与电脑在可互通的网络中。更换电脑时，用手机相机扫描新电脑 LinkFlow 中的配对二维码，再打开链接。': 'Keep this device and PC on a reachable network. When switching PCs, scan the pairing QR code in LinkFlow on the new PC with your phone camera and open the link.'
   };
 
   const ATTR = {
+    '菜单': 'Menu',
     '设置': 'Settings',
     '选择年份': 'Select Year',
     '选择月份': 'Select Month',
@@ -165,6 +178,15 @@
     const valEl = document.getElementById('setting-lang-value');
     if (valEl) {
       valEl.textContent = en ? 'English' : '简体中文';
+    }
+    const themeValEl = document.getElementById('setting-theme-value');
+    if (themeValEl) {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      if (en) {
+        themeValEl.textContent = isDark ? 'Dark' : 'Light';
+      } else {
+        themeValEl.textContent = isDark ? '深色' : '浅色';
+      }
     }
   }
 
