@@ -177,15 +177,15 @@
     const en = isEn();
     const valEl = document.getElementById('setting-lang-value');
     if (valEl) {
-      valEl.textContent = en ? '简体中文' : 'English';
+      valEl.textContent = en ? 'English' : '简体中文';
     }
     const themeValEl = document.getElementById('setting-theme-value');
     if (themeValEl) {
       const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
       if (en) {
-        themeValEl.textContent = isDark ? 'Light' : 'Dark';
+        themeValEl.textContent = isDark ? 'Dark' : 'Light';
       } else {
-        themeValEl.textContent = isDark ? '浅色' : '深色';
+        themeValEl.textContent = isDark ? '深色' : '浅色';
       }
     }
   }
